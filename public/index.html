@@ -1,46 +1,225 @@
 <!DOCTYPE html>
-<html lang="ro">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Outfit Maker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;700&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <h1>Garderoba mea</h1>
+  <header class="top">
+    <p class="eyebrow">Outfit Maker</p>
   </header>
 
   <main>
-    <ul id="lista-haine"></ul>
-    <!-- Pune asta in public/index.html, in <main>, DEASUPRA listei <ul id="lista-haine"> -->
-    <section>
-    <h2>Adaugă o haină</h2>
-    <form id="form-haina">
-        <label for="nume">Nume</label>
-        <input id="nume" name="nume" required>
+    <!-- TAB 1: Home = outfit of the day -->
+    <section id="view-home" class="view" aria-labelledby="home-title">
+      <h1 id="home-title" tabindex="-1">Today</h1>
 
-        <label for="tip">Tip</label>
-        <select id="tip" name="tip">
-        <option value="tricou">Tricou</option>s
-        <option value="pantaloni">Pantaloni</option>
-        <option value="geaca">Geacă</option>
-        <option value="adidasi">Adidași</option>
-        </select>
+      <div class="panel">
+        <div class="field">
+          <p class="field-title">Today's weather</p>
+          <p id="weather-text" class="weather-text">We'll check the weather where you are when you generate.</p>
+        </div>
 
-        <fieldset>
-        <legend>Stiluri</legend>
-        <label><input type="checkbox" name="stiluri" value="sport"> Sport</label>
-        <label><input type="checkbox" name="stiluri" value="baggy"> Baggy</label>
-        <label><input type="checkbox" name="stiluri" value="classy"> Classy</label>
-        <label><input type="checkbox" name="stiluri" value="fit"> Fit</label>
+        <fieldset class="field">
+          <legend>Today I want to dress</legend>
+          <div class="chips">
+            <label class="chip"><input type="radio" name="mood" value="sport" checked> Sport</label>
+            <label class="chip"><input type="radio" name="mood" value="baggy"> Baggy</label>
+            <label class="chip"><input type="radio" name="mood" value="classy"> Classy</label>
+            <label class="chip"><input type="radio" name="mood" value="fit"> Fit</label>
+          </div>
         </fieldset>
 
-        <button type="submit">Adaugă</button>
-    </form>
+        <div class="actions">
+          <button id="generate-btn" class="btn-primary">Generate outfit</button>
+          <button id="surprise-btn" class="btn-ghost">Surprise me</button>
+        </div>
+      </div>
+
+      <ul id="outfit" class="outfit" aria-label="Your outfit"></ul>
+
+      <!-- shows up after an outfit is generated -->
+      <div id="home-actions" class="actions actions-even" hidden>
+        <button id="style-it-btn" class="btn-primary">See it styled</button>
+        <button id="save-generated-btn" class="btn-ghost">Save</button>
+      </div>
     </section>
 
+    <!-- TAB 2: Outfits = the "mannequin" (flat lay) + saved outfits -->
+    <section id="view-outfits" class="view" aria-labelledby="outfits-title" hidden>
+      <h1 id="outfits-title" tabindex="-1">Outfits</h1>
+      <button id="create-btn" class="btn-ghost create-btn">＋ Create your own</button>
+
+      <figure class="board-wrap">
+        <div id="board" class="board" role="img" aria-label="No outfit yet"></div>
+        <figcaption id="board-caption" class="board-caption">Generate an outfit on Home or create your own.</figcaption>
+      </figure>
+
+      <div id="board-actions" class="actions actions-even" hidden>
+        <button id="share-btn" class="btn-primary">Share</button>
+        <button id="board-save-btn" class="btn-ghost">Save</button>
+        <button id="board-delete-btn" class="btn-ghost">Delete</button>
+      </div>
+
+      <h2 class="section-title">Saved outfits</h2>
+      <ul id="saved-list" class="saved-grid"></ul>
+    </section>
+
+    <!-- Create your own (opened from Outfits, not from the bottom menu) -->
+    <section id="view-create" class="view" aria-labelledby="create-title" hidden>
+      <button id="back-btn" class="btn-link">‹ Outfits</button>
+      <h1 id="create-title" tabindex="-1">Create your own</h1>
+
+      <ul id="tray" class="tray" aria-label="Your picks"></ul>
+      <p id="tray-count" class="hint">Nothing picked yet.</p>
+
+      <div class="field">
+        <label for="outfit-name">Outfit name</label>
+        <input id="outfit-name" placeholder="e.g. Friday dinner">
+      </div>
+
+      <fieldset class="field">
+        <legend>Occasion</legend>
+        <div class="segmented">
+          <label><input type="radio" name="occasion" value="casual" checked> Casual</label>
+          <label><input type="radio" name="occasion" value="work"> Work</label>
+          <label><input type="radio" name="occasion" value="party"> Party</label>
+          <label><input type="radio" name="occasion" value="sport"> Sport</label>
+        </div>
+      </fieldset>
+
+      <button id="fill-random-btn" class="btn-soft"><span aria-hidden="true">🎲</span> Fill the rest at random</button>
+
+      <fieldset class="field">
+        <legend class="visually-hidden">Show</legend>
+        <div class="chips filter-chips">
+          <label class="chip"><input type="radio" name="filter" value="all" checked> All</label>
+          <label class="chip"><input type="radio" name="filter" value="top"> Tops</label>
+          <label class="chip"><input type="radio" name="filter" value="pants"> Pants</label>
+          <label class="chip"><input type="radio" name="filter" value="jacket"> Jackets</label>
+          <label class="chip"><input type="radio" name="filter" value="shoes"> Shoes</label>
+        </div>
+      </fieldset>
+
+      <ul id="pick-list" class="grid pick-grid"></ul>
+
+      <div class="sticky-bar">
+        <button id="save-created-btn" class="btn-primary" disabled>Save outfit</button>
+      </div>
+    </section>
+
+    <!-- TAB 3 (middle): Add an item -->
+    <section id="view-add" class="view" aria-labelledby="add-title" hidden>
+      <h1 id="add-title" tabindex="-1">Add an item</h1>
+      <div class="panel">
+        <form id="clothing-form">
+          <div class="field">
+            <label for="photo" class="photo-pick">
+              <img id="photo-preview" alt="" hidden>
+              <span id="photo-placeholder"><span aria-hidden="true">📷</span> Take or choose a photo</span>
+              <span id="photo-busy" class="photo-busy" hidden>Cutting out your item…</span>
+            </label>
+            <input id="photo" name="photo" type="file" accept="image/*" capture="environment" class="visually-hidden">
+          </div>
+
+          <div class="field">
+            <label class="chip"><input type="checkbox" id="cutout" checked> Remove the background</label>
+          </div>
+
+          <div class="field">
+            <label for="name">Name</label>
+            <input id="name" name="name" placeholder="e.g. White oversized tee" required>
+          </div>
+
+          <div class="field">
+            <label for="type">Type</label>
+            <select id="type" name="type">
+              <option value="top">T-shirt / Top</option>
+              <option value="pants">Pants</option>
+              <option value="jacket">Jacket</option>
+              <option value="shoes">Shoes</option>
+            </select>
+          </div>
+
+          <fieldset class="field">
+            <legend>Styles</legend>
+            <div class="chips">
+              <label class="chip"><input type="checkbox" name="styles" value="sport"> Sport</label>
+              <label class="chip"><input type="checkbox" name="styles" value="baggy"> Baggy</label>
+              <label class="chip"><input type="checkbox" name="styles" value="classy"> Classy</label>
+              <label class="chip"><input type="checkbox" name="styles" value="fit"> Fit</label>
+            </div>
+          </fieldset>
+
+          <fieldset class="field">
+            <legend>How warm is it?</legend>
+            <div class="chips">
+              <label class="chip"><input type="radio" name="warmth" value="1"> Light</label>
+              <label class="chip"><input type="radio" name="warmth" value="2" checked> Medium</label>
+              <label class="chip"><input type="radio" name="warmth" value="3"> Warm</label>
+            </div>
+          </fieldset>
+
+          <div class="field">
+            <label class="chip"><input type="checkbox" name="rainproof" value="yes"> Good for rain</label>
+          </div>
+
+          <button id="add-submit" type="submit" class="btn-primary">Add to wardrobe</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- TAB 4: Clothes = the whole wardrobe -->
+    <section id="view-clothes" class="view" aria-labelledby="clothes-title" hidden>
+      <div class="view-head">
+        <h1 id="clothes-title" tabindex="-1">Clothes</h1>
+        <button id="select-toggle" class="btn-ghost" aria-pressed="false">Select</button>
+      </div>
+      <ul id="clothes-list" class="grid"></ul>
+
+      <!-- appears only in select mode -->
+      <div id="select-bar" class="select-bar" hidden>
+        <button id="delete-selected" class="btn-danger" disabled>Delete (0)</button>
+      </div>
+    </section>
+
+    <!-- TAB 5: Profile -->
+    <section id="view-profile" class="view" aria-labelledby="profile-title" hidden>
+      <h1 id="profile-title" tabindex="-1">Profile</h1>
+      <ul id="stats" class="stats"></ul>
+      <h2 class="section-title">Your wardrobe</h2>
+      <ul id="type-breakdown" class="breakdown"></ul>
+      <div class="panel empty-state">
+        <p>Coming later: your account, friends and a feed to share outfits.</p>
+      </div>
+    </section>
+
+    <!-- screen readers announce whatever we write in here -->
+    <p id="status" class="status" role="status" aria-live="polite"></p>
   </main>
+
+  <!-- bottom menu: 5 tabs, Add in the middle -->
+  <nav class="bottom-nav" aria-label="Main">
+    <button class="nav-btn" data-view="home" aria-current="page">
+      <span class="nav-icon" aria-hidden="true">⌂</span> Home
+    </button>
+    <button class="nav-btn" data-view="outfits">
+      <span class="nav-icon" aria-hidden="true">✦</span> Outfits
+    </button>
+    <button class="nav-btn nav-add" data-view="add">
+      <span class="nav-icon" aria-hidden="true">＋</span> Add
+    </button>
+    <button class="nav-btn" data-view="clothes">
+      <span class="nav-icon" aria-hidden="true">▦</span> Clothes
+    </button>
+    <button class="nav-btn" data-view="profile">
+      <svg class="nav-icon nav-svg" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg> Profile
+    </button>
+  </nav>
 
   <script src="app.js"></script>
 </body>
