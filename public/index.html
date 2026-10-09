@@ -13,6 +13,33 @@
 
   <main>
     <ul id="lista-haine"></ul>
+    <!-- Pune asta in public/index.html, in <main>, DEASUPRA listei <ul id="lista-haine"> -->
+    <section>
+    <h2>Adaugă o haină</h2>
+    <form id="form-haina">
+        <label for="nume">Nume</label>
+        <input id="nume" name="nume" required>
+
+        <label for="tip">Tip</label>
+        <select id="tip" name="tip">
+        <option value="tricou">Tricou</option>s
+        <option value="pantaloni">Pantaloni</option>
+        <option value="geaca">Geacă</option>
+        <option value="adidasi">Adidași</option>
+        </select>
+
+        <fieldset>
+        <legend>Stiluri</legend>
+        <label><input type="checkbox" name="stiluri" value="sport"> Sport</label>
+        <label><input type="checkbox" name="stiluri" value="baggy"> Baggy</label>
+        <label><input type="checkbox" name="stiluri" value="classy"> Classy</label>
+        <label><input type="checkbox" name="stiluri" value="fit"> Fit</label>
+        </fieldset>
+
+        <button type="submit">Adaugă</button>
+    </form>
+    </section>
+
   </main>
 
   <script src="app.js"></script>

@@ -1,16 +1,16 @@
 [
   {
     "id": 1,
-    "nume": "Geacă de blugi",
-    "tip": "geaca",
-    "stiluri": ["baggy", "classy"],
-    "poza": "geaca.png"
+    "name": "Denim jacket",
+    "type": "jacket",
+    "styles": ["baggy", "classy"],
+    "photo": ""
   },
   {
     "id": 2,
-    "nume": "Pantaloni Nike",
-    "tip": "pantaloni",
-    "stiluri": ["sport"],
-    "poza": "pantaloni.png"
+    "name": "Nike track pants",
+    "type": "pants",
+    "styles": ["sport"],
+    "photo": ""
   }
 ]
