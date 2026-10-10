@@ -1,10 +1,108 @@
 [
-  { "id": 1, "name": "Denim jacket", "type": "jacket", "styles": ["baggy", "classy"], "warmth": 2, "rainproof": false, "photo": "" },
-  { "id": 2, "name": "Nike track pants", "type": "pants", "styles": ["sport"], "warmth": 2, "rainproof": false, "photo": "" },
-  { "id": 3, "name": "White oversized tee", "type": "top", "styles": ["baggy", "sport"], "warmth": 1, "rainproof": false, "photo": "" },
-  { "id": 4, "name": "Black fitted tee", "type": "top", "styles": ["fit", "classy"], "warmth": 1, "rainproof": false, "photo": "" },
-  { "id": 5, "name": "Wide leg jeans", "type": "pants", "styles": ["baggy"], "warmth": 2, "rainproof": false, "photo": "" },
-  { "id": 6, "name": "Air Force 1", "type": "shoes", "styles": ["baggy", "classy"], "warmth": 2, "rainproof": false, "photo": "" },
-  { "id": 7, "name": "Grey hoodie", "type": "top", "styles": ["sport", "baggy"], "warmth": 3, "rainproof": false, "photo": "" },
-  { "id": 8, "name": "Navy rain shell", "type": "jacket", "styles": ["sport"], "warmth": 2, "rainproof": true, "photo": "" }
+  {
+    "id": 1,
+    "name": "Denim jacket",
+    "type": "jacket",
+    "styles": [
+      "baggy",
+      "classy"
+    ],
+    "warmth": 2,
+    "rainproof": false,
+    "photo": ""
+  },
+  {
+    "id": 2,
+    "name": "Nike track pants",
+    "type": "pants",
+    "styles": [
+      "sport"
+    ],
+    "warmth": 2,
+    "rainproof": false,
+    "photo": ""
+  },
+  {
+    "id": 3,
+    "name": "White oversized tee",
+    "type": "top",
+    "styles": [
+      "baggy",
+      "sport"
+    ],
+    "warmth": 1,
+    "rainproof": false,
+    "photo": ""
+  },
+  {
+    "id": 4,
+    "name": "Black fitted tee",
+    "type": "top",
+    "styles": [
+      "fit",
+      "classy"
+    ],
+    "warmth": 1,
+    "rainproof": false,
+    "photo": ""
+  },
+  {
+    "id": 5,
+    "name": "Wide leg jeans",
+    "type": "pants",
+    "styles": [
+      "baggy"
+    ],
+    "warmth": 2,
+    "rainproof": false,
+    "photo": ""
+  },
+  {
+    "id": 6,
+    "name": "Air Force 1",
+    "type": "shoes",
+    "styles": [
+      "baggy",
+      "classy"
+    ],
+    "warmth": 2,
+    "rainproof": false,
+    "photo": ""
+  },
+  {
+    "id": 7,
+    "name": "Grey hoodie",
+    "type": "top",
+    "styles": [
+      "sport",
+      "baggy"
+    ],
+    "warmth": 3,
+    "rainproof": false,
+    "photo": ""
+  },
+  {
+    "id": 8,
+    "name": "Navy rain shell",
+    "type": "jacket",
+    "styles": [
+      "sport"
+    ],
+    "warmth": 2,
+    "rainproof": true,
+    "photo": ""
+  },
+  {
+    "id": 9,
+    "name": "oversied hoodie",
+    "type": "top",
+    "styles": [
+      "sport",
+      "baggy",
+      "fit"
+    ],
+    "warmth": 2,
+    "rainproof": false,
+    "photo": "uploads/9.png"
+  }
 ]

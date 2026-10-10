@@ -1,0 +1,14 @@
+[
+  {
+    "id": 1,
+    "name": "My outfit",
+    "occasion": "casual",
+    "itemIds": [
+      9,
+      5,
+      6,
+      8
+    ],
+    "createdAt": "2026-10-10T12:28:48.541Z"
+  }
+]

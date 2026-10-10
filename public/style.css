@@ -17,6 +17,7 @@
 
 /* ---------- Base ---------- */
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -36,7 +37,7 @@ h1, h2 { font-family: var(--font-title); font-weight: 600; margin: 0; }
 h1 { font-size: 2.4rem; line-height: 1.1; }
 h2 { font-size: 1.6rem; margin-bottom: 16px; }
 
-.top { padding-top: 24px; padding-bottom: 4px; }
+.top { padding-top: calc(24px + env(safe-area-inset-top)); padding-bottom: 4px; }
 .eyebrow {
   margin: 0 0 4px;
   font-size: 0.8rem;
@@ -176,7 +177,7 @@ body:has(.select-bar:not([hidden])) { padding-bottom: 180px; } /* more room when
 .bottom-nav {
   position: fixed;
   left: 50%;
-  bottom: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom)); /* stays above the iPhone home bar */
   transform: translateX(-50%);
   width: min(560px, calc(100% - 32px));
   display: grid;

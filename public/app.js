@@ -111,7 +111,14 @@ function createCard(item) {
 async function loadClothes() {
   list.innerHTML = ""; // clear the list before drawing it again
 
-  const response = await fetch("/api/clothes");
+  let response;
+  try {
+    response = await fetch("/api/clothes");
+  } catch (error) {
+    // no internet, or the laptop with the server is off
+    statusMessage.textContent = "You're offline, so we can't load your clothes right now.";
+    return;
+  }
   if (!response.ok) {
     statusMessage.textContent = "Could not load your wardrobe. Check the terminal for errors.";
     return;
@@ -696,8 +703,12 @@ function drawSaved() {
 }
 
 async function loadOutfits() {
-  const response = await fetch("/api/outfits");
-  if (response.ok) allOutfits = await response.json();
+  try {
+    const response = await fetch("/api/outfits");
+    if (response.ok) allOutfits = await response.json();
+  } catch (error) {
+    // offline: loadClothes already shows the message
+  }
 }
 
 async function saveOutfit(outfit) {
@@ -1001,6 +1012,11 @@ function drawProfile() {
 
 async function start() {
   await Promise.all([loadClothes(), loadOutfits()]);
+}
+
+// the service worker (sw.js) lets the app open even without internet
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
 }
 
 start();
