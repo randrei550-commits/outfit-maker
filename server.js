@@ -2,6 +2,14 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 
+// secrets (like the AI key) live in a file called .env that git IGNORES,
+// so they never end up on GitHub. Node can read that file by itself.
+try {
+  process.loadEnvFile(); // reads .env into process.env
+} catch (error) {
+  console.log("No .env file found: the 3D (ghost mannequin) feature will be off.");
+}
+
 const app = express();
 const PORT = 3000;
 const DATA_FILE = "clothes.json";
@@ -11,7 +19,7 @@ const PHOTO_DIR = path.join("public", "uploads");
 fs.mkdirSync(PHOTO_DIR, { recursive: true });
 
 app.use(express.static("public"));
-app.use(express.json({ limit: "8mb" })); // PNG photos are a bit bigger than JPEG
+app.use(express.json({ limit: "15mb" })); // AI photos can be big // PNG photos are a bit bigger than JPEG
 
 // reads any JSON list from disk (empty list if the file doesn't exist yet)
 function readList(file) {
@@ -118,6 +126,89 @@ app.delete("/api/outfits/:id", (req, res) => {
   }
   saveList(OUTFITS_FILE, outfits.filter((o) => o.id !== id));
   res.status(204).end();
+});
+
+// ---------- Ghost mannequin (AI) ----------
+// The browser sends us the cut out photo. WE (the server) talk to the AI,
+// because only the server knows the secret key. The browser never sees it.
+
+const GEMINI_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image";
+const GEMINI_BASE = process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com";
+const DAILY_LIMIT = Number(process.env.GHOST_DAILY_LIMIT || 20); // protects your money
+
+const GHOST_PROMPT =
+  "Turn this clothing item into a professional e-commerce 'ghost mannequin' product photo. " +
+  "The garment must look like it is worn by an invisible mannequin: natural 3D volume and shape, " +
+  "front view, centered, the whole garment visible. Keep the exact colors, fabric texture, logos, " +
+  "prints, zippers and every detail identical to the original. Remove any other objects " +
+  "(headphones, hangers, hands). Plain light grey background, soft studio light, " +
+  "subtle shadow. No person and no visible mannequin.";
+
+let ghostCount = 0;
+let ghostDay = new Date().toDateString();
+
+// tells the app which extra features are switched on (without ever sending the key!)
+app.get("/api/features", (req, res) => {
+  res.json({ ghost: Boolean(GEMINI_KEY) });
+});
+
+app.post("/api/ghost", async (req, res) => {
+  if (!GEMINI_KEY) {
+    return res.status(503).json({ error: "The 3D feature is off (no AI key on the server)." });
+  }
+
+  // a simple counter that resets every day
+  const today = new Date().toDateString();
+  if (today !== ghostDay) {
+    ghostDay = today;
+    ghostCount = 0;
+  }
+  if (ghostCount >= DAILY_LIMIT) {
+    return res.status(429).json({ error: "Daily limit reached. Try again tomorrow." });
+  }
+
+  const prefix = "data:image/jpeg;base64,";
+  const photo = req.body.photo;
+  if (typeof photo !== "string" || !photo.startsWith(prefix)) {
+    return res.status(400).json({ error: "Send a JPEG photo." });
+  }
+
+  try {
+    ghostCount++;
+    const url = GEMINI_BASE + "/v1beta/models/" + GEMINI_MODEL + ":generateContent";
+    const aiResponse = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_KEY },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: GHOST_PROMPT },
+            { inline_data: { mime_type: "image/jpeg", data: photo.slice(prefix.length) } }
+          ]
+        }]
+      })
+    });
+    const data = await aiResponse.json();
+    if (!aiResponse.ok) {
+      console.error("AI error:", JSON.stringify(data).slice(0, 500));
+      return res.status(502).json({ error: "The AI service said no (" + aiResponse.status + "). Check the terminal." });
+    }
+
+    // the answer has several "parts"; we look for the one that is an image
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const imagePart = parts.find((p) => p.inlineData || p.inline_data);
+    if (!imagePart) {
+      console.error("AI sent no image:", JSON.stringify(data).slice(0, 500));
+      return res.status(502).json({ error: "The AI didn't send back an image. Try another photo." });
+    }
+    const image = imagePart.inlineData || imagePart.inline_data;
+    const mime = image.mimeType || image.mime_type || "image/png";
+    res.json({ photo: "data:" + mime + ";base64," + image.data });
+  } catch (error) {
+    console.error("AI request failed:", error.message);
+    res.status(502).json({ error: "Couldn't reach the AI service." });
+  }
 });
 
 app.listen(PORT, () => {

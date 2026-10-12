@@ -104,5 +104,18 @@
     "warmth": 2,
     "rainproof": false,
     "photo": "uploads/9.png"
+  },
+  {
+    "id": 11,
+    "name": "essentials",
+    "type": "top",
+    "styles": [
+      "baggy",
+      "classy",
+      "fit"
+    ],
+    "warmth": 2,
+    "rainproof": true,
+    "photo": "uploads/11.png"
   }
 ]

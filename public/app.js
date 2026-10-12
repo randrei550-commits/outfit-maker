@@ -184,6 +184,7 @@ const photoPreview = document.getElementById("photo-preview");
 const photoPlaceholder = document.getElementById("photo-placeholder");
 const photoBusy = document.getElementById("photo-busy");
 const cutoutBox = document.getElementById("cutout");
+const ghostBox = document.getElementById("ghost");
 const addSubmit = document.getElementById("add-submit");
 let photoData = ""; // the chosen photo, as text the server can save
 
@@ -211,13 +212,83 @@ function shrinkToCanvas(img, size) {
   return canvas;
 }
 
+// The AI sometimes keeps small extra things from the photo (a sock on the floor,
+// a bit of the bed). We look for "islands" of visible pixels and keep only the
+// big ones. Same idea as flood fill in C: start at a pixel, visit every neighbour
+// that is also visible, count how many we found.
+function keepBigPieces(data, width, height) {
+  const label = new Int32Array(width * height); // 0 = not visited yet, like calloc
+  const queue = new Int32Array(width * height); // our own stack, no recursion
+  const sizes = [0]; // sizes[n] = how many pixels island n has
+  const visible = (i) => data[i * 4 + 3] > 20;
+
+  for (let start = 0; start < width * height; start++) {
+    if (label[start] || !visible(start)) continue;
+    const id = sizes.length;
+    let head = 0, tail = 0;
+    queue[tail++] = start;
+    label[start] = id;
+    while (head < tail) {
+      const i = queue[head++];
+      const x = i % width;
+      // the 4 neighbours: left, right, up, down
+      const around = [x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, i - width, i + width];
+      for (const n of around) {
+        if (n >= 0 && n < width * height && !label[n] && visible(n)) {
+          label[n] = id;
+          queue[tail++] = n;
+        }
+      }
+    }
+    sizes.push(tail); // tail = how many pixels went through the queue
+  }
+
+  // keep every island at least 1/4 of the biggest one (so a PAIR of shoes stays)
+  const biggest = Math.max(...sizes);
+  for (let i = 0; i < width * height; i++) {
+    if (label[i] && sizes[label[i]] < biggest / 4) data[i * 4 + 3] = 0; // make it invisible
+  }
+}
+
+// how bright the item is, from 0 (black) to 255 (white). We only count visible pixels.
+function averageBrightness(data) {
+  let sum = 0, count = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] > 20) {
+      sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]; // how our eyes see colours
+      count++;
+    }
+  }
+  return count ? sum / count : 128;
+}
+
+// dark clothes in a normal room come out almost black and you lose the details
+// (seams, pockets, folds). We lift the dark tones and leave the light ones alone.
+// pow(x, 0.75) does that: 0 stays 0, 1 stays 1, everything in between gets brighter.
+function liftShadows(data) {
+  const table = new Uint8ClampedArray(256); // pre-computed, like a lookup table in C
+  for (let v = 0; v < 256; v++) table[v] = 255 * Math.pow(v / 255, 0.75);
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = table[data[i]];
+    data[i + 1] = table[data[i + 1]];
+    data[i + 2] = table[data[i + 2]];
+  }
+}
+
 // after the cut out, there is lots of empty (transparent) space around the item.
 // We find the smallest box that still contains every visible pixel and crop to it,
 // so every item ends up nicely centred, like in a shop.
 function cropToItem(img) {
   const canvas = shrinkToCanvas(img, 800);
   const ctx = canvas.getContext("2d");
-  const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const { data, width, height } = pixels;
+
+  keepBigPieces(data, width, height);
+  const brightness = averageBrightness(data);
+  const isDark = brightness < 70;
+  if (isDark) liftShadows(data);
+  ctx.putImageData(pixels, 0, 0);
 
   let minX = width, minY = height, maxX = -1, maxY = -1;
   for (let y = 0; y < height; y++) {
@@ -243,7 +314,37 @@ function cropToItem(img) {
   out.width = maxX - minX + 1;
   out.height = maxY - minY + 1;
   out.getContext("2d").drawImage(canvas, minX, minY, out.width, out.height, 0, 0, out.width, out.height);
+  studioLight(out, isDark);
   return out.toDataURL("image/png"); // PNG keeps the transparency, JPEG can't
+}
+
+// a free "studio" touch: a bit of light at the top and a bit of shade at the bottom,
+// so the item looks rounder, like it was photographed in a studio.
+// "source-atop" = paint ONLY where the item is, never on the transparent background.
+// Dark items get more light and almost no shade, or they would turn into a black blob.
+function studioLight(canvas, isDark) {
+  const ctx = canvas.getContext("2d");
+  const look = isDark
+    ? { top: 0.16, bottom: 0.04, edges: 0.06 }
+    : { top: 0.10, bottom: 0.14, edges: 0.16 };
+  ctx.globalCompositeOperation = "source-atop";
+
+  const light = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  light.addColorStop(0, "rgba(255, 255, 255, " + look.top + ")");
+  light.addColorStop(0.45, "rgba(255, 255, 255, 0)");
+  light.addColorStop(1, "rgba(0, 0, 0, " + look.bottom + ")");
+  ctx.fillStyle = light;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // the edges get slightly darker, the middle stays bright: that reads as "volume"
+  const r = Math.max(canvas.width, canvas.height) * 0.75;
+  const edges = ctx.createRadialGradient(canvas.width / 2, canvas.height * 0.4, r * 0.35, canvas.width / 2, canvas.height * 0.4, r);
+  edges.addColorStop(0, "rgba(0, 0, 0, 0)");
+  edges.addColorStop(1, "rgba(0, 0, 0, " + look.edges + ")");
+  ctx.fillStyle = edges;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.globalCompositeOperation = "source-over"; // back to normal drawing
 }
 
 async function cutOut(file) {
@@ -266,10 +367,42 @@ async function cutOut(file) {
   return cropToItem(await loadImage(result));
 }
 
-photoInput.addEventListener("change", async () => {
-  const file = photoInput.files[0];
-  if (!file) return;
+// puts the cut out item on a light grey background and turns it into a JPEG,
+// because AI models don't handle transparent pictures well
+async function onGrey(pngData) {
+  const img = await imageFromUrl(pngData);
+  const canvas = document.createElement("canvas");
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#EFEBE4";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0);
+  return canvas.toDataURL("image/jpeg", 0.9);
+}
 
+// sends the photo to OUR server, which asks the AI for a ghost mannequin version.
+// Then we cut the new picture out again, so it has a transparent background.
+async function makeGhost(cutoutData) {
+  const response = await fetch("/api/ghost", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ photo: await onGrey(cutoutData) })
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error);
+
+  const aiBlob = await (await fetch(result.photo)).blob(); // text -> picture file
+  return cutOut(aiBlob);
+}
+
+photoInput.addEventListener("change", () => {
+  const file = photoInput.files[0];
+  if (file) handlePhoto(file);
+});
+
+// everything that happens to a new photo, whether it came from the camera or the gallery
+async function handlePhoto(file) {
   photoPlaceholder.hidden = true;
   addSubmit.disabled = true; // don't save while the photo is still being prepared
   const original = shrinkToCanvas(await loadImage(file), 800).toDataURL("image/jpeg", 0.85);
@@ -297,8 +430,121 @@ photoInput.addEventListener("change", async () => {
     photoData = original;
     statusMessage.textContent = "Couldn't remove the background, so we kept the normal photo.";
   }
+
+  // step 2 (optional): the AI gives the item a "worn" 3D shape
+  if (ghostBox.checked && photoData !== original) {
+    photoBusy.textContent = "Giving it shape with AI…";
+    statusMessage.textContent = "Making it 3D. This can take up to a minute.";
+    try {
+      photoData = await makeGhost(photoData);
+      photoPreview.src = photoData;
+      statusMessage.textContent = "Your item is ready in 3D.";
+    } catch (error) {
+      console.error(error);
+      statusMessage.textContent = "The 3D step didn't work (" + error.message + "), so we kept the cut out photo.";
+    }
+  }
   photoBusy.hidden = true;
   addSubmit.disabled = false;
+}
+
+// ---------- Camera with a guide ----------
+// The outline shows WHERE to put the item. A hanging item has a natural 3D shape
+// (gravity does the job of the AI), so we ask for tops, jackets and pants on a hanger.
+
+const camera = document.getElementById("camera");
+const cameraVideo = document.getElementById("camera-video");
+const cameraTip = document.getElementById("camera-tip");
+const cameraButton = document.getElementById("camera-btn");
+const typeSelect = document.getElementById("type");
+let cameraStream = null;
+
+const HANGER = "M150 26 a14 14 0 1 1 14 16 q-14 4 -14 14 v8 M150 64 L95 92 M150 64 L205 92";
+const GUIDES = {
+  top: {
+    hanger: true,
+    shape: "M150 64 L95 88 L45 150 L78 172 L100 142 L100 360 L200 360 L200 142 L222 172 L255 150 L205 88 Z",
+    tip: "Hang it on a hanger against a plain wall and fill the outline."
+  },
+  jacket: {
+    hanger: true,
+    shape: "M150 64 L92 88 L60 150 L48 305 L82 309 L100 172 L100 362 L200 362 L200 172 L218 309 L252 305 L240 150 L208 88 Z",
+    tip: "Hang it on a hanger against a plain wall. Close the zip for the best shape."
+  },
+  pants: {
+    hanger: true,
+    shape: "M95 92 H205 L216 372 H162 L150 170 L138 372 H84 Z",
+    tip: "Hang them by the waist against a plain wall and fill the outline."
+  },
+  shoes: {
+    hanger: false,
+    shape: "M48 290 Q46 238 104 226 L146 196 Q172 184 190 208 L250 248 Q272 262 270 292 Z",
+    tip: "Put one shoe on the floor, side view, on a plain background."
+  }
+};
+
+function drawGuide(type) {
+  const guide = GUIDES[type] || GUIDES.top;
+  document.getElementById("guide-shape").setAttribute("d", guide.shape);
+  document.getElementById("guide-hanger").setAttribute("d", guide.hanger ? HANGER : "");
+  cameraTip.textContent = guide.tip;
+  document.querySelector('input[name="camtype"][value="' + type + '"]').checked = true;
+}
+
+// the chips in the camera and the Type list in the form always show the same thing
+for (const radio of document.querySelectorAll('input[name="camtype"]')) {
+  radio.addEventListener("change", () => {
+    typeSelect.value = radio.value;
+    drawGuide(radio.value);
+  });
+}
+
+cameraButton.addEventListener("click", async () => {
+  // old phones or plain http: no live camera, so we open the normal photo picker instead
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    photoInput.click();
+    return;
+  }
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1920 } },
+      audio: false
+    });
+  } catch (error) {
+    statusMessage.textContent = "We couldn't open the camera (permission blocked?). Use From gallery instead.";
+    return;
+  }
+  cameraVideo.srcObject = cameraStream;
+  drawGuide(typeSelect.value);
+  camera.hidden = false;
+  document.body.classList.add("camera-open");
+  document.getElementById("camera-shot").focus();
+});
+
+function closeCamera() {
+  if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop()); // turns the camera light off
+  cameraStream = null;
+  camera.hidden = true;
+  document.body.classList.remove("camera-open");
+  cameraButton.focus();
+}
+
+document.getElementById("camera-close").addEventListener("click", closeCamera);
+camera.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeCamera();
+});
+
+document.getElementById("camera-shot").addEventListener("click", async () => {
+  // take one frame from the live video and turn it into a picture file
+  const canvas = document.createElement("canvas");
+  canvas.width = cameraVideo.videoWidth;
+  canvas.height = cameraVideo.videoHeight;
+  canvas.getContext("2d").drawImage(cameraVideo, 0, 0);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+  const tooDark = averageBrightness(shrinkToCanvas(canvas, 64).getContext("2d").getImageData(0, 0, 64, 64).data) < 60;
+  closeCamera();
+  await handlePhoto(blob);
+  if (tooDark) statusMessage.textContent += " Tip: the room was dark. More light gives a sharper cut out.";
 });
 
 function resetPhoto() {
@@ -790,7 +1036,11 @@ async function makeShareImage(outfit) {
     const w = (place.w / 100) * area.w;
     const h = (place.h / 100) * area.h;
     if (item.photo) {
+      ctx.shadowColor = "rgba(43, 38, 32, 0.22)"; // soft shadow under each item, like on a table
+      ctx.shadowBlur = 36;
+      ctx.shadowOffsetY = 14;
       drawContained(ctx, await imageFromUrl(item.photo), x, y, w, h);
+      ctx.shadowColor = "transparent";
     } else {
       ctx.fillStyle = "#E2DCD2";
       ctx.beginPath();
@@ -1011,7 +1261,21 @@ function drawProfile() {
 // ---------- Start ----------
 
 async function start() {
-  await Promise.all([loadClothes(), loadOutfits()]);
+  await Promise.all([loadClothes(), loadOutfits(), loadFeatures()]);
+}
+
+// the AI 3D switch only shows up when the server has an AI key ("Premium" later)
+async function loadFeatures() {
+  try {
+    const features = await (await fetch("/api/features")).json();
+    if (!features.ghost) {
+      ghostBox.checked = false;
+      ghostBox.closest("label").hidden = true;
+    }
+  } catch (error) {
+    ghostBox.checked = false;
+    ghostBox.closest("label").hidden = true;
+  }
 }
 
 // the service worker (sw.js) lets the app open even without internet

@@ -127,16 +127,21 @@
       <div class="panel">
         <form id="clothing-form">
           <div class="field">
-            <label for="photo" class="photo-pick">
+            <div class="photo-pick">
               <img id="photo-preview" alt="" hidden>
-              <span id="photo-placeholder"><span aria-hidden="true">📷</span> Take or choose a photo</span>
+              <span id="photo-placeholder"><span aria-hidden="true">👕</span> Add a photo of your item</span>
               <span id="photo-busy" class="photo-busy" hidden>Cutting out your item…</span>
-            </label>
-            <input id="photo" name="photo" type="file" accept="image/*" capture="environment" class="visually-hidden">
+            </div>
+            <div class="actions actions-even photo-actions">
+              <button type="button" id="camera-btn" class="btn-primary"><span aria-hidden="true">📷</span> Take photo</button>
+              <label for="photo" class="btn-ghost file-btn">From gallery</label>
+            </div>
+            <input id="photo" name="photo" type="file" accept="image/*" class="visually-hidden">
           </div>
 
-          <div class="field">
+          <div class="field chips">
             <label class="chip"><input type="checkbox" id="cutout" checked> Remove the background</label>
+            <label class="chip"><input type="checkbox" id="ghost" checked> Make it 3D (AI)</label>
           </div>
 
           <div class="field">
@@ -229,6 +234,29 @@
       <svg class="nav-icon nav-svg" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg> Profile
     </button>
   </nav>
+
+  <!-- in-app camera with an outline that shows how to place the item -->
+  <div id="camera" class="camera" role="dialog" aria-modal="true" aria-label="Camera" hidden>
+    <video id="camera-video" playsinline muted autoplay></video>
+    <svg class="camera-guide" viewBox="0 0 300 400" aria-hidden="true">
+      <path id="guide-hanger" class="guide-hanger"></path>
+      <path id="guide-shape"></path>
+    </svg>
+    <div class="camera-top">
+      <p id="camera-tip" class="camera-tip"></p>
+      <div class="chips camera-types" role="radiogroup" aria-label="What are you photographing?">
+        <label class="chip"><input type="radio" name="camtype" value="top"> Top</label>
+        <label class="chip"><input type="radio" name="camtype" value="pants"> Pants</label>
+        <label class="chip"><input type="radio" name="camtype" value="jacket"> Jacket</label>
+        <label class="chip"><input type="radio" name="camtype" value="shoes"> Shoes</label>
+      </div>
+    </div>
+    <div class="camera-bar">
+      <button type="button" id="camera-close" class="camera-text-btn">Cancel</button>
+      <button type="button" id="camera-shot" class="shutter" aria-label="Take the photo"></button>
+      <span class="camera-spacer"></span>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
