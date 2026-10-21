@@ -150,3 +150,5 @@ vite.config.ts.timestamp-*
 
 users.json
 sessions.json
+outfit-maker.db
+*.imported

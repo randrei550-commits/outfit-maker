@@ -1,7 +1,7 @@
 // Service worker = a small helper the browser runs in the background for our app.
 // Its job here: keep a copy of the app's files, so the app still opens without internet.
 
-const CACHE = "outfit-maker-v11";
+const CACHE = "outfit-maker-v13";
 const APP_FILES = [
   "/",
   "/index.html",
