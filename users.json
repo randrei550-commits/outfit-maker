@@ -1,0 +1,9 @@
+[
+  {
+    "id": 1,
+    "username": "andrei",
+    "salt": "bf8b3b7d288eda707cb140eb90e18ea4",
+    "hash": "8439960d99517312f0e75b490b7fd2ff4bbe3b5ca1cc0f4844550fda172bdace486419265bd9673c4a7b13725b661dcca9f368bc88c5337eeda466229d770541",
+    "createdAt": "2026-10-21T16:46:15.653Z"
+  }
+]

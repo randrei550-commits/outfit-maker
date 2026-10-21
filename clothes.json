@@ -9,7 +9,8 @@
     ],
     "warmth": 2,
     "rainproof": false,
-    "photo": ""
+    "photo": "",
+    "ownerId": 1
   },
   {
     "id": 2,
@@ -20,7 +21,8 @@
     ],
     "warmth": 2,
     "rainproof": false,
-    "photo": ""
+    "photo": "",
+    "ownerId": 1
   },
   {
     "id": 3,
@@ -32,7 +34,8 @@
     ],
     "warmth": 1,
     "rainproof": false,
-    "photo": ""
+    "photo": "",
+    "ownerId": 1
   },
   {
     "id": 4,
@@ -44,7 +47,8 @@
     ],
     "warmth": 1,
     "rainproof": false,
-    "photo": ""
+    "photo": "",
+    "ownerId": 1
   },
   {
     "id": 5,
@@ -55,7 +59,8 @@
     ],
     "warmth": 2,
     "rainproof": false,
-    "photo": ""
+    "photo": "",
+    "ownerId": 1
   },
   {
     "id": 6,
@@ -67,7 +72,8 @@
     ],
     "warmth": 2,
     "rainproof": false,
-    "photo": ""
+    "photo": "",
+    "ownerId": 1
   },
   {
     "id": 7,
@@ -79,7 +85,8 @@
     ],
     "warmth": 3,
     "rainproof": false,
-    "photo": ""
+    "photo": "",
+    "ownerId": 1
   },
   {
     "id": 8,
@@ -90,7 +97,8 @@
     ],
     "warmth": 2,
     "rainproof": true,
-    "photo": ""
+    "photo": "",
+    "ownerId": 1
   },
   {
     "id": 9,
@@ -103,7 +111,8 @@
     ],
     "warmth": 2,
     "rainproof": false,
-    "photo": "uploads/9.png"
+    "photo": "uploads/9.png",
+    "ownerId": 1
   },
   {
     "id": 11,
@@ -116,6 +125,7 @@
     ],
     "warmth": 2,
     "rainproof": true,
-    "photo": "uploads/11.png"
+    "photo": "uploads/11.png",
+    "ownerId": 1
   }
 ]

@@ -119,6 +119,7 @@ async function loadClothes() {
     statusMessage.textContent = "You're offline, so we can't load your clothes right now.";
     return;
   }
+  if (response.status === 401) return showAuth(); // the ticket expired: log in again
   if (!response.ok) {
     statusMessage.textContent = "Could not load your wardrobe. Check the terminal for errors.";
     return;
@@ -1260,8 +1261,84 @@ function drawProfile() {
 
 // ---------- Start ----------
 
-async function start() {
+// ---------- Accounts ----------
+// The server gives the browser a "ticket" (a cookie) at login. The browser sends it
+// by itself with every fetch, so the code below never sees or touches it.
+
+const authForm = document.getElementById("auth-form");
+const authSubmit = document.getElementById("auth-submit");
+const authSwitch = document.getElementById("auth-switch");
+const authHint = document.getElementById("auth-hint");
+const authPassword = document.getElementById("auth-password");
+let creatingAccount = false; // false = "Log in" mode, true = "Create account" mode
+
+function showAuth() {
+  document.body.classList.add("logged-out");
+  showView("auth");
+}
+
+// the form does two jobs; this switches between them
+authSwitch.addEventListener("click", () => {
+  creatingAccount = !creatingAccount;
+  authSubmit.textContent = creatingAccount ? "Create account" : "Log in";
+  authSwitch.textContent = creatingAccount ? "Already have an account? Log in" : "New here? Create an account";
+  authHint.hidden = !creatingAccount;
+  // tells password managers whether to fill in a saved password or suggest a new one
+  authPassword.autocomplete = creatingAccount ? "new-password" : "current-password";
+  statusMessage.textContent = "";
+});
+
+authForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  authSubmit.disabled = true;
+  const data = new FormData(authForm);
+  try {
+    const response = await fetch(creatingAccount ? "/api/register" : "/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: data.get("username"), password: data.get("password") })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      statusMessage.textContent = result.error;
+      return;
+    }
+    authForm.reset();
+    await enterApp(result);
+  } catch (error) {
+    statusMessage.textContent = "You're offline, so we can't log you in right now.";
+  } finally {
+    authSubmit.disabled = false; // runs whether it worked or not
+  }
+});
+
+document.getElementById("logout-btn").addEventListener("click", async () => {
+  await fetch("/api/logout", { method: "POST" });
+  allClothes = [];
+  allOutfits = [];
+  showAuth();
+});
+
+async function enterApp(user) {
+  document.getElementById("account-name").textContent = user.username;
+  document.body.classList.remove("logged-out");
   await Promise.all([loadClothes(), loadOutfits(), loadFeatures()]);
+  showView("home");
+}
+
+async function start() {
+  let response;
+  try {
+    response = await fetch("/api/me"); // "who am I?" The cookie goes along by itself
+  } catch (error) {
+    statusMessage.textContent = "You're offline. Open the app again when you have internet.";
+    return;
+  }
+  if (response.ok) {
+    await enterApp(await response.json());
+  } else {
+    showAuth();
+  }
 }
 
 // the AI 3D switch only shows up when the server has an AI key ("Premium" later)

@@ -70,7 +70,7 @@ section { margin-bottom: 32px; }
   margin-bottom: 6px;
 }
 
-input[type="text"], input:not([type]), select {
+input[type="text"], input[type="password"], input:not([type]), select {
   width: 100%;
   padding: 12px 16px;
   font: inherit;
@@ -713,3 +713,11 @@ body.camera-open { overflow: hidden; }
 }
 .shutter:active { transform: scale(0.94); }
 .camera :focus-visible { outline: 3px solid #FFFFFF; outline-offset: 3px; }
+
+/* ---------- Accounts ---------- */
+body.logged-out .bottom-nav { display: none; } /* no menu until you log in */
+body.logged-out { padding-bottom: 24px; }
+.auth-switch { display: block; margin: 16px auto 0; }
+.auth-hint { margin: 6px 0 0; }
+.account { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.account p { margin: 0; }

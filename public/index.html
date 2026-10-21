@@ -23,8 +23,29 @@
   </header>
 
   <main>
+    <!-- Log in / create account (shown when there's no valid "ticket" cookie) -->
+    <section id="view-auth" class="view" aria-labelledby="auth-title" hidden>
+      <h1 id="auth-title" tabindex="-1">Welcome</h1>
+      <p class="hint">Log in to see your wardrobe, or create an account in a few seconds.</p>
+      <div class="panel">
+        <form id="auth-form">
+          <div class="field">
+            <label for="auth-username">Username</label>
+            <input id="auth-username" name="username" autocomplete="username" autocapitalize="none" required>
+          </div>
+          <div class="field">
+            <label for="auth-password">Password</label>
+            <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" required>
+            <p id="auth-hint" class="hint auth-hint" hidden>At least 8 characters.</p>
+          </div>
+          <button id="auth-submit" type="submit" class="btn-primary">Log in</button>
+        </form>
+        <button id="auth-switch" type="button" class="btn-link auth-switch">New here? Create an account</button>
+      </div>
+    </section>
+
     <!-- TAB 1: Home = outfit of the day -->
-    <section id="view-home" class="view" aria-labelledby="home-title">
+    <section id="view-home" class="view" aria-labelledby="home-title" hidden>
       <h1 id="home-title" tabindex="-1">Today</h1>
 
       <div class="panel">
@@ -207,8 +228,12 @@
       <ul id="stats" class="stats"></ul>
       <h2 class="section-title">Your wardrobe</h2>
       <ul id="type-breakdown" class="breakdown"></ul>
+      <div class="panel account">
+        <p>Logged in as <strong id="account-name"></strong></p>
+        <button id="logout-btn" class="btn-ghost">Log out</button>
+      </div>
       <div class="panel empty-state">
-        <p>Coming later: your account, friends and a feed to share outfits.</p>
+        <p>Coming later: friends and a feed to share outfits.</p>
       </div>
     </section>
 
