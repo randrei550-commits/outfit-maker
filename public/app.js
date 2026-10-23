@@ -47,6 +47,16 @@ for (const button of navButtons) {
   button.addEventListener("click", () => showView(button.dataset.view));
 }
 
+// ---------- Talking to our server ----------
+// Every request for YOUR data goes through here. If the server answers 401
+// ("who are you?"), the ticket is gone, so we close the app and show the login screen.
+// One check in one place, instead of an if after every fetch.
+async function api(url, options) {
+  const response = await fetch(url, options);
+  if (response.status === 401) showAuth();
+  return response;
+}
+
 // ---------- Clothes (wardrobe) ----------
 
 // fills a photo box: the real photo if we have one, otherwise the first letter
@@ -113,7 +123,7 @@ async function loadClothes() {
 
   let response;
   try {
-    response = await fetch("/api/clothes");
+    response = await api("/api/clothes");
   } catch (error) {
     // no internet, or the laptop with the server is off
     statusMessage.textContent = "You're offline, so we can't load your clothes right now.";
@@ -171,7 +181,7 @@ deleteButton.addEventListener("click", async () => {
   }
 
   for (const id of ids) {
-    await fetch("/api/clothes/" + id, { method: "DELETE" });
+    await api("/api/clothes/" + id, { method: "DELETE" });
   }
 
   statusMessage.textContent = ids.length + " " + word + " deleted.";
@@ -385,7 +395,7 @@ async function onGrey(pngData) {
 // sends the photo to OUR server, which asks the AI for a ghost mannequin version.
 // Then we cut the new picture out again, so it has a transparent background.
 async function makeGhost(cutoutData) {
-  const response = await fetch("/api/ghost", {
+  const response = await api("/api/ghost", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ photo: await onGrey(cutoutData) })
@@ -569,7 +579,7 @@ form.addEventListener("submit", async (event) => {
     photo: photoData
   };
 
-  const response = await fetch("/api/clothes", {
+  const response = await api("/api/clothes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(newItem)
@@ -951,7 +961,7 @@ function drawSaved() {
 
 async function loadOutfits() {
   try {
-    const response = await fetch("/api/outfits");
+    const response = await api("/api/outfits");
     if (response.ok) allOutfits = await response.json();
   } catch (error) {
     // offline: loadClothes already shows the message
@@ -959,7 +969,7 @@ async function loadOutfits() {
 }
 
 async function saveOutfit(outfit) {
-  const response = await fetch("/api/outfits", {
+  const response = await api("/api/outfits", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: outfit.name, occasion: outfit.occasion, itemIds: outfit.itemIds })
@@ -985,7 +995,7 @@ boardSaveButton.addEventListener("click", async () => {
 
 boardDeleteButton.addEventListener("click", async () => {
   if (!confirm("Delete " + boardOutfit.name + "? Your clothes stay in your wardrobe.")) return;
-  await fetch("/api/outfits/" + boardOutfit.id, { method: "DELETE" });
+  await api("/api/outfits/" + boardOutfit.id, { method: "DELETE" });
   const name = boardOutfit.name;
   allOutfits = allOutfits.filter((o) => o.id !== boardOutfit.id);
   boardOutfit = null;
