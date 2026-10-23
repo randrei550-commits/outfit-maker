@@ -101,6 +101,12 @@ function createCard(item) {
   const type = document.createElement("p");
   type.className = "type";
   type.textContent = item.type;
+  if (item.color) {
+    const dot = document.createElement("span");
+    dot.className = "color-dot color-" + item.color;
+    dot.setAttribute("aria-hidden", "true");
+    type.append(" · " + item.color + " ", dot);
+  }
 
   const tags = document.createElement("ul");
   tags.className = "tags";
@@ -148,6 +154,7 @@ async function loadClothes() {
     list.appendChild(createCard(item));
   }
   updateDeleteButton();
+  fillMissingColors(clothes); // no await: it works in the background
 }
 
 // ---------- Select + Delete ----------
@@ -576,7 +583,9 @@ form.addEventListener("submit", async (event) => {
     styles: data.getAll("styles"), // getAll = every checked box, as an array
     warmth: Number(data.get("warmth")),
     rainproof: data.get("rainproof") === "yes",
-    photo: photoData
+    photo: photoData,
+    // only cut outs: in a normal photo the wall behind would count as the colour
+    color: photoData.startsWith("data:image/png") ? await mainColor(photoData) : ""
   };
 
   const response = await api("/api/clothes", {
@@ -596,6 +605,83 @@ form.addEventListener("submit", async (event) => {
     statusMessage.textContent = "Could not add the item: " + error.error;
   }
 });
+
+// ---------- Colours ----------
+// The app works out the main colour of an item from its cut out photo.
+// RGB is how screens store colour; HSL is how people think about it:
+// H = hue (which colour, 0-360 on a colour wheel), S = saturation (how strong), L = lightness.
+
+function toHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l }; // grey: no hue at all
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h;
+  if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  return { h: h * 60, s, l };
+}
+
+// one pixel -> a colour family. Black, white, grey, beige, brown and denim
+// count as "neutral": in fashion they go with anything
+function colorFamily({ h, s, l }) {
+  if (s < 0.2 || l < 0.12 || l > 0.92) return "neutral";
+  if (h >= 15 && h < 50 && s < 0.5) return "neutral";              // beige, brown, khaki
+  if (h >= 195 && h < 235 && s < 0.55 && l < 0.6) return "neutral"; // denim, navy
+  if (h < 15 || h >= 345) return "red";
+  if (h < 40) return "orange";
+  if (h < 70) return "yellow";
+  if (h < 160) return "green";
+  if (h < 195) return "teal";
+  if (h < 255) return "blue";
+  if (h < 290) return "purple";
+  return "pink";
+}
+
+// count the families of all visible pixels, like an array of counters in C, and keep the winner
+async function mainColor(photoUrl) {
+  const img = await imageFromUrl(photoUrl);
+  const canvas = shrinkToCanvas(img, 48); // 48 px is plenty to know the colour, and fast
+  const { data } = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height);
+  const counts = {};
+  let total = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 200) continue; // transparent = background, skip it
+    const family = colorFamily(toHsl(data[i], data[i + 1], data[i + 2]));
+    counts[family] = (counts[family] || 0) + 1;
+    total++;
+  }
+  if (total === 0) return "";
+  // a black hoodie with a small red logo is still a black hoodie:
+  // a strong colour wins only if it covers at least 25% of the item
+  let best = "neutral";
+  for (const family in counts) {
+    if (family !== "neutral" && counts[family] > (counts[best] || 0) && counts[family] / total >= 0.25) best = family;
+  }
+  return best;
+}
+
+// items saved before v15 have no colour yet: we work it out once and tell the server
+async function fillMissingColors(clothes) {
+  for (const item of clothes) {
+    if (item.color || !item.photo || !item.photo.endsWith(".png")) continue; // only cut outs (PNG)
+    try {
+      item.color = await mainColor(item.photo);
+      if (item.color) {
+        await api("/api/clothes/" + item.id, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ color: item.color })
+        });
+      }
+    } catch (error) {
+      console.error("Couldn't read the colour of " + item.name, error);
+    }
+  }
+}
 
 // ---------- Home: outfit of the day ----------
 
@@ -707,6 +793,51 @@ function candidatesFor(slot, style) {
   return { pool: slot.required ? base : [], fallback: true };
 }
 
+// ---------- The smart part: scoring ----------
+// Instead of picking at random, every candidate gets POINTS for how well it goes
+// with the pieces already chosen. Then we pick at random among the best ones,
+// so you still get variety and not the same outfit every morning.
+
+// styles that don't belong together in one outfit
+const STYLE_CLASHES = [["sport", "classy"], ["baggy", "fit"]];
+
+function stylesClash(a, b) {
+  return STYLE_CLASHES.some(([x, y]) =>
+    (a.styles.includes(x) && b.styles.includes(y)) || (a.styles.includes(y) && b.styles.includes(x)));
+}
+
+function score(item, slot, chosen) {
+  let points = 0;
+
+  // STYLE: pieces that share a style look like one outfit, clashing ones don't
+  for (const other of chosen) {
+    if (item.styles.some((s) => other.styles.includes(s))) points += 2;
+    else if (stylesClash(item, other)) points -= 3;
+  }
+
+  // COLOUR (unknown colour = no opinion, 0 points)
+  if (item.color && item.color !== "neutral") {
+    const strong = chosen.filter((c) => c.color && c.color !== "neutral");
+    if (strong.some((c) => c.color === item.color)) points += 1; // same family: blue + blue works
+    else if (strong.length > 0) points -= 10;                     // a SECOND strong colour: almost never
+  }
+  // neutral pieces get 0, not a bonus: an all-neutral outfit is fine, and so is one strong colour
+
+  // SHOES: neutral, or the same colour as the top
+  if (slot.type === "shoes" && item.color) {
+    const top = chosen.find((c) => c.type === "top");
+    if (item.color === "neutral" || (top && top.color === item.color)) points += 1;
+  }
+  return points;
+}
+
+// the best score, and everything within 1 point of it, goes in the hat; then we draw one
+function pickBest(pool, slot, chosen) {
+  const scored = pool.map((item) => ({ item, points: score(item, slot, chosen) }));
+  const best = Math.max(...scored.map((s) => s.points));
+  return pickRandom(scored.filter((s) => s.points >= best - 1)).item;
+}
+
 async function generate(style) {
   currentStyle = style;
   currentOutfit = [];
@@ -725,7 +856,8 @@ async function generate(style) {
       if (slot.required) currentOutfit.push({ slot, item: null, fallback: false });
       continue; // optional piece with nothing to choose: just skip it
     }
-    currentOutfit.push({ slot, item: pickRandom(pool), fallback });
+    const chosen = currentOutfit.map((p) => p.item).filter(Boolean);
+    currentOutfit.push({ slot, item: pickBest(pool, slot, chosen), fallback });
   }
 
   drawOutfit();
@@ -748,7 +880,8 @@ function swapPiece(index) {
     statusMessage.textContent = "No other " + piece.slot.label.toLowerCase() + " to swap in.";
     return;
   }
-  piece.item = pickRandom(others);
+  const rest = currentOutfit.filter((p) => p !== piece).map((p) => p.item).filter(Boolean);
+  piece.item = pickBest(others, piece.slot, rest); // the new piece must still go with the others
   drawOutfit();
   statusMessage.textContent = piece.slot.label + " swapped to " + piece.item.name + ".";
   // keep focus on the same swap button so keyboard users don't get lost

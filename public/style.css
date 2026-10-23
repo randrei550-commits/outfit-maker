@@ -721,3 +721,15 @@ body.logged-out { padding-bottom: 24px; }
 .auth-hint { margin: 6px 0 0; }
 .account { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .account p { margin: 0; }
+
+/* ---------- Colour dot on cards (v15) ---------- */
+.color-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; border: 1px solid rgba(0, 0, 0, 0.25); }
+.color-neutral { background: linear-gradient(135deg, #1d1d1d 50%, #f2f2f2 50%); }
+.color-red { background: #d33a2c; }
+.color-orange { background: #e8833a; }
+.color-yellow { background: #f2c94c; }
+.color-green { background: #3f9b5a; }
+.color-teal { background: #2a9d9a; }
+.color-blue { background: #2f6fd6; }
+.color-purple { background: #8a4fd0; }
+.color-pink { background: #e46aa5; }

@@ -83,6 +83,14 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS outfits_by_owner ON outfits(owner_id);
 `);
 
+// NEW in v15: the main colour of each item ("neutral", "blue", ...).
+// Old databases don't have this column yet, so we add it once (ALTER TABLE = change the struct)
+const COLORS = ["neutral", "red", "orange", "yellow", "green", "teal", "blue", "purple", "pink"];
+const clothesColumns = db.prepare("PRAGMA table_info(clothes)").all().map((c) => c.name);
+if (!clothesColumns.includes("color")) {
+  db.exec("ALTER TABLE clothes ADD COLUMN color TEXT NOT NULL DEFAULT ''");
+}
+
 // all-or-nothing: if anything inside fn fails, every change is undone (ROLLBACK)
 function transaction(fn) {
   db.exec("BEGIN");
@@ -105,7 +113,8 @@ function clothingFromRow(row) {
     styles: JSON.parse(row.styles),
     warmth: row.warmth,
     rainproof: row.rainproof === 1,
-    photo: row.photo
+    photo: row.photo,
+    color: row.color
   };
 }
 
@@ -307,7 +316,7 @@ app.get("/api/clothes", requireUser, (req, res) => {
 });
 
 app.post("/api/clothes", requireUser, (req, res) => {
-  const { name, type, styles, warmth, rainproof, photo } = req.body;
+  const { name, type, styles, warmth, rainproof, photo, color } = req.body;
   if (!name || !type) {
     return res.status(400).json({ error: "Name and type are required." });
   }
@@ -327,8 +336,8 @@ app.post("/api/clothes", requireUser, (req, res) => {
   // the ? marks are filled in by the database itself, in order. NEVER glue user text
   // into SQL with + : someone could type a name like  '); DELETE FROM users; --
   const result = db.prepare(`
-    INSERT INTO clothes (owner_id, name, type, styles, warmth, rainproof, photo)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO clothes (owner_id, name, type, styles, warmth, rainproof, photo, color)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     req.user.id,
     name.trim(),
@@ -336,10 +345,26 @@ app.post("/api/clothes", requireUser, (req, res) => {
     JSON.stringify(Array.isArray(styles) ? styles : []),
     [1, 2, 3].includes(Number(warmth)) ? Number(warmth) : 2,
     rainproof === true ? 1 : 0,
-    photoPath
+    photoPath,
+    COLORS.includes(color) ? color : ""
   );
   const row = db.prepare("SELECT * FROM clothes WHERE id = ?").get(result.lastInsertRowid);
   res.status(201).json(clothingFromRow(row));
+});
+
+// the app works out the colour of OLD items in the browser and sends it here.
+// PATCH = "change one field", not the whole item
+app.patch("/api/clothes/:id", requireUser, (req, res) => {
+  const color = req.body.color;
+  if (!COLORS.includes(color)) {
+    return res.status(400).json({ error: "Unknown colour." });
+  }
+  const result = db.prepare("UPDATE clothes SET color = ? WHERE id = ? AND owner_id = ?")
+    .run(color, Number(req.params.id), req.user.id);
+  if (result.changes === 0) {
+    return res.status(404).json({ error: "Item not found." });
+  }
+  res.status(204).end();
 });
 
 app.delete("/api/clothes/:id", requireUser, (req, res) => {
