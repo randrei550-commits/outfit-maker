@@ -106,6 +106,17 @@ db.exec(`
     UNIQUE (item_id, worn_on)
   );
   CREATE INDEX IF NOT EXISTS wears_by_item ON wears(item_id);
+
+  -- NEW in v17: what the robot learned about PAIRS of clothes.
+  -- score > 0: "these two go well together", score < 0: "not together".
+  -- Always item_a < item_b, so (5, 9) and (9, 5) can't both exist: one pair, one row.
+  CREATE TABLE IF NOT EXISTS pair_scores (
+    item_a INTEGER NOT NULL REFERENCES clothes(id) ON DELETE CASCADE,
+    item_b INTEGER NOT NULL REFERENCES clothes(id) ON DELETE CASCADE,
+    score  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (item_a, item_b),
+    CHECK (item_a < item_b)
+  );
 `);
 
 // all-or-nothing: if anything inside fn fails, every change is undone (ROLLBACK)
@@ -400,6 +411,51 @@ app.patch("/api/clothes/:id", requireUser, (req, res) => {
   }
   if (color !== undefined) db.prepare("UPDATE clothes SET color = ? WHERE id = ?").run(color, id);
   if (inLaundry !== undefined) db.prepare("UPDATE clothes SET in_laundry = ? WHERE id = ?").run(inLaundry ? 1 : 0, id);
+  res.status(204).end();
+});
+
+// ---------- Learning pairs (👍 and swaps) ----------
+const PAIR_LIMIT = 5; // a pair can be between -5 and +5, so one bad day can't erase a month of 👍
+
+// everything the robot learned about YOUR clothes
+app.get("/api/pairs", requireUser, (req, res) => {
+  const rows = db.prepare(`
+    SELECT pair_scores.item_a, pair_scores.item_b, pair_scores.score
+    FROM pair_scores
+    JOIN clothes ON clothes.id = pair_scores.item_a
+    WHERE clothes.owner_id = ?
+  `).all(req.user.id);
+  res.json(rows.map((r) => ({ a: r.item_a, b: r.item_b, score: r.score })));
+});
+
+// { pairs: [[1, 4], [1, 7]], delta: 1 }  -> those pairs go up by 1 (or down, with -1)
+app.post("/api/pairs", requireUser, (req, res) => {
+  const { pairs, delta } = req.body;
+  if (!Array.isArray(pairs) || pairs.length === 0 || ![1, -1].includes(delta)) {
+    return res.status(400).json({ error: "Send pairs of items and a delta of 1 or -1." });
+  }
+  const isMine = db.prepare("SELECT 1 FROM clothes WHERE id = ? AND owner_id = ?");
+  const clean = [];
+  for (const pair of pairs) {
+    if (!Array.isArray(pair) || pair.length !== 2) return res.status(400).json({ error: "A pair has 2 items." });
+    const a = Math.min(Number(pair[0]), Number(pair[1]));
+    const b = Math.max(Number(pair[0]), Number(pair[1]));
+    if (a === b || !isMine.get(a, req.user.id) || !isMine.get(b, req.user.id)) {
+      return res.status(400).json({ error: "Some of those items aren't in your wardrobe." });
+    }
+    clean.push([a, b]);
+  }
+
+  transaction(() => {
+    // "UPSERT": insert the pair, or if it already exists, change its score.
+    // MAX/MIN keep it between -5 and +5 (a clamp, like in C)
+    const upsert = db.prepare(`
+      INSERT INTO pair_scores (item_a, item_b, score) VALUES (?, ?, ?)
+      ON CONFLICT (item_a, item_b)
+      DO UPDATE SET score = MAX(?, MIN(?, score + excluded.score))
+    `);
+    for (const [a, b] of clean) upsert.run(a, b, delta, -PAIR_LIMIT, PAIR_LIMIT);
+  });
   res.status(204).end();
 });
 

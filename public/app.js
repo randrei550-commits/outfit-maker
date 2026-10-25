@@ -855,6 +855,49 @@ function candidatesFor(slot, style) {
 // with the pieces already chosen. Then we pick at random among the best ones,
 // so you still get variety and not the same outfit every morning.
 
+// ---------- What the robot learned (v17) ----------
+// pairScores["4-9"] = +2 means: item 4 and item 9 went well together twice
+let pairScores = {};
+
+// the smaller id always goes first, so "4-9" and "9-4" are the same key
+function pairKey(a, b) {
+  return Math.min(a, b) + "-" + Math.max(a, b);
+}
+
+async function loadPairs() {
+  try {
+    const response = await api("/api/pairs");
+    if (!response.ok) return;
+    pairScores = {};
+    for (const p of await response.json()) pairScores[pairKey(p.a, p.b)] = p.score;
+  } catch (error) {
+    // offline: the robot just doesn't use what it learned this time
+  }
+}
+
+// every pair you can make from a list: for 3 items that's 3 pairs (a nested for, like in C)
+function allPairs(items) {
+  const pairs = [];
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) pairs.push([items[i].id, items[j].id]);
+  }
+  return pairs;
+}
+
+async function learn(pairs, delta) {
+  if (pairs.length === 0) return;
+  // our copy first, so the next Generate uses it right away (same -5..+5 clamp as the server)
+  for (const [a, b] of pairs) {
+    const key = pairKey(a, b);
+    pairScores[key] = Math.max(-5, Math.min(5, (pairScores[key] || 0) + delta));
+  }
+  await api("/api/pairs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pairs, delta })
+  });
+}
+
 // styles that don't belong together in one outfit
 const STYLE_CLASHES = [["sport", "classy"], ["baggy", "fit"]];
 
@@ -879,6 +922,11 @@ function score(item, slot, chosen) {
     else if (strong.length > 0) points -= 10;                     // a SECOND strong colour: almost never
   }
   // neutral pieces get 0, not a bonus: an all-neutral outfit is fine, and so is one strong colour
+
+  // WHAT YOU TAUGHT IT: every 👍 or swap with the pieces already chosen counts double
+  for (const other of chosen) {
+    points += 2 * (pairScores[pairKey(item.id, other.id)] || 0);
+  }
 
   // RECENTLY WORN: yesterday's hoodie again today? Better not.
   // A minus, not a ban: if it's your only pair of pants, you still get them
@@ -946,6 +994,8 @@ function swapPiece(index) {
     return;
   }
   const rest = currentOutfit.filter((p) => p !== piece).map((p) => p.item).filter(Boolean);
+  // you swapped it out = "this piece doesn't go with the rest". The robot remembers that.
+  learn(rest.map((other) => [piece.item.id, other.id]), -1);
   piece.item = pickBest(others, piece.slot, rest); // the new piece must still go with the others
   drawOutfit();
   statusMessage.textContent = piece.slot.label + " swapped to " + piece.item.name + ".";
@@ -1005,6 +1055,9 @@ function drawOutfit() {
   homeActions.hidden = currentOutfit.every((p) => p.item === null);
   woreItButton.disabled = false; // a new outfit can be worn again
   woreItButton.textContent = "✓ Wore it today";
+  likeButton.disabled = false;
+  likeButton.setAttribute("aria-pressed", "false");
+  likeButton.textContent = "👍 Like it";
 }
 
 function capitalize(word) {
@@ -1032,6 +1085,29 @@ surpriseButton.addEventListener("click", () => generate(null)); // the funny but
 document.getElementById("style-it-btn").addEventListener("click", () => {
   boardOutfit = outfitFromHome();
   showView("outfits");
+});
+
+const likeButton = document.getElementById("like-btn");
+const skipButton = document.getElementById("skip-btn");
+
+likeButton.addEventListener("click", async () => {
+  const items = currentOutfit.map((p) => p.item).filter(Boolean);
+  await learn(allPairs(items), 1); // every pair in this outfit goes up
+  likeButton.disabled = true;
+  likeButton.setAttribute("aria-pressed", "true");
+  likeButton.textContent = "👍 Liked";
+  statusMessage.textContent = "Got it! We'll put these together more often.";
+});
+
+// Skip the WHOLE outfit: we don't know why (another style? not in the mood?),
+// so we don't punish anything. We just make a different one.
+skipButton.addEventListener("click", async () => {
+  const before = currentOutfit.map((p) => p.item && p.item.id).join(",");
+  for (let tries = 0; tries < 5; tries++) {
+    await generate(currentStyle);
+    if (currentOutfit.map((p) => p.item && p.item.id).join(",") !== before) return;
+  }
+  statusMessage.textContent = "That's the only outfit we can make in this style. Add more clothes for more ideas!";
 });
 
 const woreItButton = document.getElementById("wore-it-btn");
@@ -1574,7 +1650,7 @@ document.getElementById("logout-btn").addEventListener("click", async () => {
 async function enterApp(user) {
   document.getElementById("account-name").textContent = user.username;
   document.body.classList.remove("logged-out");
-  await Promise.all([loadClothes(), loadOutfits(), loadFeatures()]);
+  await Promise.all([loadClothes(), loadOutfits(), loadFeatures(), loadPairs()]);
   showView("home");
 }
 
