@@ -90,6 +90,23 @@ const clothesColumns = db.prepare("PRAGMA table_info(clothes)").all().map((c) =>
 if (!clothesColumns.includes("color")) {
   db.exec("ALTER TABLE clothes ADD COLUMN color TEXT NOT NULL DEFAULT ''");
 }
+// NEW in v16: "in the laundry" is a yes/no. SQLite has no bool (like old C), so 0 = no, 1 = yes
+if (!clothesColumns.includes("in_laundry")) {
+  db.exec("ALTER TABLE clothes ADD COLUMN in_laundry INTEGER NOT NULL DEFAULT 0");
+}
+
+// NEW in v16: a diary of what you wore. One row = "I wore item X on day Y".
+// We don't store a counter: we COUNT the rows when we need the number, so it can never be wrong.
+// UNIQUE = pressing "Wore it" twice on the same day still counts once.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS wears (
+    id      INTEGER PRIMARY KEY,
+    item_id INTEGER NOT NULL REFERENCES clothes(id) ON DELETE CASCADE,
+    worn_on TEXT NOT NULL,
+    UNIQUE (item_id, worn_on)
+  );
+  CREATE INDEX IF NOT EXISTS wears_by_item ON wears(item_id);
+`);
 
 // all-or-nothing: if anything inside fn fails, every change is undone (ROLLBACK)
 function transaction(fn) {
@@ -114,7 +131,10 @@ function clothingFromRow(row) {
     warmth: row.warmth,
     rainproof: row.rainproof === 1,
     photo: row.photo,
-    color: row.color
+    color: row.color,
+    inLaundry: row.in_laundry === 1,
+    wearCount: row.wear_count || 0,   // how many days you wore it
+    lastWorn: row.last_worn || null   // "2026-10-25", or null if never
   };
 }
 
@@ -311,7 +331,17 @@ app.get("/api/photos/:file", requireUser, (req, res) => {
 // every route below gets requireUser first, and only touches rows WHERE owner_id = you
 
 app.get("/api/clothes", requireUser, (req, res) => {
-  const rows = db.prepare("SELECT * FROM clothes WHERE owner_id = ? ORDER BY id").all(req.user.id);
+  // LEFT JOIN = every item, even the ones never worn (they get COUNT 0).
+  // GROUP BY = one result row per item, with the count of its rows in wears:
+  // this is your "frequency vector", calculated by the database
+  const rows = db.prepare(`
+    SELECT clothes.*, COUNT(wears.id) AS wear_count, MAX(wears.worn_on) AS last_worn
+    FROM clothes
+    LEFT JOIN wears ON wears.item_id = clothes.id
+    WHERE clothes.owner_id = ?
+    GROUP BY clothes.id
+    ORDER BY clothes.id
+  `).all(req.user.id);
   res.json(rows.map(clothingFromRow));
 });
 
@@ -354,17 +384,43 @@ app.post("/api/clothes", requireUser, (req, res) => {
 
 // the app works out the colour of OLD items in the browser and sends it here.
 // PATCH = "change one field", not the whole item
+// PATCH = "change only what I send": the colour, the laundry flag, or both
 app.patch("/api/clothes/:id", requireUser, (req, res) => {
-  const color = req.body.color;
-  if (!COLORS.includes(color)) {
+  const { color, inLaundry } = req.body;
+  if (color === undefined && inLaundry === undefined) {
+    return res.status(400).json({ error: "Nothing to change." });
+  }
+  if (color !== undefined && !COLORS.includes(color)) {
     return res.status(400).json({ error: "Unknown colour." });
   }
-  const result = db.prepare("UPDATE clothes SET color = ? WHERE id = ? AND owner_id = ?")
-    .run(color, Number(req.params.id), req.user.id);
-  if (result.changes === 0) {
+  const id = Number(req.params.id);
+  const item = db.prepare("SELECT id FROM clothes WHERE id = ? AND owner_id = ?").get(id, req.user.id);
+  if (!item) {
     return res.status(404).json({ error: "Item not found." });
   }
+  if (color !== undefined) db.prepare("UPDATE clothes SET color = ? WHERE id = ?").run(color, id);
+  if (inLaundry !== undefined) db.prepare("UPDATE clothes SET in_laundry = ? WHERE id = ?").run(inLaundry ? 1 : 0, id);
   res.status(204).end();
+});
+
+// "Wore it": one diary row per item for that day.
+// The DATE comes from the phone, because "today" depends on where YOU are, not where the server is.
+app.post("/api/wears", requireUser, (req, res) => {
+  const { itemIds, date } = req.body;
+  if (!Array.isArray(itemIds) || itemIds.length === 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date || "")) {
+    return res.status(400).json({ error: "Send the items and a date like 2026-10-25." });
+  }
+  const ids = [...new Set(itemIds.map(Number))];
+  const isMine = db.prepare("SELECT 1 FROM clothes WHERE id = ? AND owner_id = ?");
+  if (!ids.every((id) => isMine.get(id, req.user.id))) {
+    return res.status(400).json({ error: "Some of those items aren't in your wardrobe." });
+  }
+  transaction(() => {
+    // OR IGNORE: if that day is already in the diary, skip it instead of failing
+    const add = db.prepare("INSERT OR IGNORE INTO wears (item_id, worn_on) VALUES (?, ?)");
+    for (const id of ids) add.run(id, date);
+  });
+  res.status(201).json({ itemIds: ids, date });
 });
 
 app.delete("/api/clothes/:id", requireUser, (req, res) => {

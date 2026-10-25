@@ -733,3 +733,15 @@ body.logged-out { padding-bottom: 24px; }
 .color-blue { background: #2f6fd6; }
 .color-purple { background: #8a4fd0; }
 .color-pink { background: #e46aa5; }
+
+/* ---------- Wore it + laundry (v16) ---------- */
+#home-actions { grid-template-columns: 1fr 1fr; }
+#home-actions .wore-it { grid-column: 1 / -1; } /* full width under the two buttons */
+.worn { margin: 8px 0 0; color: var(--text-muted); font-size: 0.82rem; }
+.laundry-btn {
+  margin-top: 10px; padding: 6px 12px; font: inherit; font-size: 0.85rem;
+  color: var(--text); background: transparent; border: 1px solid var(--border, #d8d2c8);
+  border-radius: var(--radius-pill); cursor: pointer;
+}
+.laundry-btn[aria-pressed="true"] { color: #FFFFFF; background: var(--text); border-color: var(--text); }
+.card.in-laundry .card-photo { opacity: 0.4; } /* faded: not in your closet right now */

@@ -118,7 +118,23 @@ function createCard(item) {
     tags.appendChild(tag);
   }
 
-  body.append(title, type, tags);
+  // the laundry switch: aria-pressed tells screen readers if it's on or off
+  const laundry = document.createElement("button");
+  laundry.type = "button";
+  laundry.className = "laundry-btn";
+  laundry.setAttribute("aria-pressed", String(item.inLaundry));
+  laundry.textContent = item.inLaundry ? "🧺 In the laundry" : "🧺 Laundry";
+  laundry.setAttribute("aria-label", item.name + " is in the laundry");
+  laundry.addEventListener("click", () => toggleLaundry(item, card, laundry));
+  if (item.inLaundry) card.classList.add("in-laundry");
+
+  const worn = document.createElement("p");
+  worn.className = "worn";
+  worn.textContent = item.wearCount > 0
+    ? "Worn " + item.wearCount + (item.wearCount === 1 ? " time" : " times") + " · last " + wornWhen(item.lastWorn)
+    : "Not worn yet";
+
+  body.append(title, type, tags, worn, laundry);
   card.append(photo, body);
   return card;
 }
@@ -155,6 +171,46 @@ async function loadClothes() {
   }
   updateDeleteButton();
   fillMissingColors(clothes); // no await: it works in the background
+}
+
+// ---------- Dates, wears and laundry (v16) ----------
+
+// today as "2026-10-25", in YOUR time zone (padStart adds the 0 in "09", like %02d in printf)
+function todayString() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+// how many days ago was "2026-10-23"? Both dates are read the same way, so the difference is exact
+function daysSince(dateString) {
+  return Math.round((Date.parse(todayString()) - Date.parse(dateString)) / 86400000); // ms in a day
+}
+
+function wornWhen(dateString) {
+  const days = daysSince(dateString);
+  if (days === 0) return "today";
+  if (days === 1) return "yesterday";
+  return days + " days ago";
+}
+
+async function toggleLaundry(item, card, button) {
+  const inLaundry = !item.inLaundry;
+  const response = await api("/api/clothes/" + item.id, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ inLaundry })
+  });
+  if (!response.ok) {
+    statusMessage.textContent = "Couldn't update " + item.name + ".";
+    return;
+  }
+  item.inLaundry = inLaundry;
+  card.classList.toggle("in-laundry", inLaundry);
+  button.setAttribute("aria-pressed", String(inLaundry));
+  button.textContent = inLaundry ? "🧺 In the laundry" : "🧺 Laundry";
+  statusMessage.textContent = inLaundry
+    ? item.name + " is in the laundry. We won't suggest it until it's back."
+    : item.name + " is clean and back in your outfits.";
 }
 
 // ---------- Select + Delete ----------
@@ -778,7 +834,8 @@ function fitsWeather(item, slot) {
 
 // all clothes that could go in this slot
 function candidatesFor(slot, style) {
-  const sameType = allClothes.filter((c) => c.type === slot.type);
+  // clothes in the laundry are not in your closet today, so they're never an option
+  const sameType = allClothes.filter((c) => c.type === slot.type && !c.inLaundry);
   const goodWeather = sameType.filter((c) => fitsWeather(c, slot));
   const base = goodWeather.length > 0 ? goodWeather : sameType; // weather is a wish, not a must
 
@@ -822,6 +879,14 @@ function score(item, slot, chosen) {
     else if (strong.length > 0) points -= 10;                     // a SECOND strong colour: almost never
   }
   // neutral pieces get 0, not a bonus: an all-neutral outfit is fine, and so is one strong colour
+
+  // RECENTLY WORN: yesterday's hoodie again today? Better not.
+  // A minus, not a ban: if it's your only pair of pants, you still get them
+  if (item.lastWorn) {
+    const days = daysSince(item.lastWorn);
+    if (days <= 1) points -= 4;
+    else if (days === 2) points -= 1;
+  }
 
   // SHOES: neutral, or the same colour as the top
   if (slot.type === "shoes" && item.color) {
@@ -938,6 +1003,8 @@ function drawOutfit() {
   });
 
   homeActions.hidden = currentOutfit.every((p) => p.item === null);
+  woreItButton.disabled = false; // a new outfit can be worn again
+  woreItButton.textContent = "✓ Wore it today";
 }
 
 function capitalize(word) {
@@ -965,6 +1032,29 @@ surpriseButton.addEventListener("click", () => generate(null)); // the funny but
 document.getElementById("style-it-btn").addEventListener("click", () => {
   boardOutfit = outfitFromHome();
   showView("outfits");
+});
+
+const woreItButton = document.getElementById("wore-it-btn");
+
+woreItButton.addEventListener("click", async () => {
+  const items = currentOutfit.map((p) => p.item).filter(Boolean);
+  const response = await api("/api/wears", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ itemIds: items.map((i) => i.id), date: todayString() })
+  });
+  if (!response.ok) {
+    statusMessage.textContent = "Couldn't save that. Try again.";
+    return;
+  }
+  // update our copy right away, so the next Generate already knows
+  for (const item of items) {
+    if (item.lastWorn !== todayString()) item.wearCount++;
+    item.lastWorn = todayString();
+  }
+  woreItButton.disabled = true;
+  woreItButton.textContent = "✓ Worn today";
+  statusMessage.textContent = "Saved! Tomorrow we'll suggest something different.";
 });
 
 document.getElementById("save-generated-btn").addEventListener("click", async () => {
@@ -1386,6 +1476,25 @@ function drawProfile() {
     label.textContent = tile.label;
     li.append(value, label);
     stats.appendChild(li);
+  }
+
+  // your frequency vector, sorted: the 3 items you wear the most
+  const mostWorn = document.getElementById("most-worn");
+  mostWorn.innerHTML = "";
+  const ranking = allClothes.filter((c) => c.wearCount > 0).sort((a, b) => b.wearCount - a.wearCount).slice(0, 3);
+  if (ranking.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = "Tap “Wore it today” on Home and your favourites show up here.";
+    mostWorn.appendChild(li);
+  }
+  for (const item of ranking) {
+    const li = document.createElement("li");
+    const name = document.createElement("span");
+    name.textContent = item.name;
+    const count = document.createElement("span");
+    count.textContent = item.wearCount + "×";
+    li.append(name, count);
+    mostWorn.appendChild(li);
   }
 
   const breakdown = document.getElementById("type-breakdown");
