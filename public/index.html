@@ -46,7 +46,10 @@
 
     <!-- TAB 1: Home = outfit of the day -->
     <section id="view-home" class="view" aria-labelledby="home-title" hidden>
-      <h1 id="home-title" tabindex="-1">Today</h1>
+      <div class="view-head">
+        <h1 id="home-title" tabindex="-1">Today</h1>
+        <button id="week-btn" class="btn-ghost"><span aria-hidden="true">📅</span> Your week</button>
+      </div>
 
       <div class="panel">
         <div class="field">
@@ -70,6 +73,7 @@
         </div>
       </div>
 
+      <p id="plan-note" class="plan-note" hidden></p>
       <ul id="outfit" class="outfit" aria-label="Your outfit"></ul>
 
       <!-- shows up after an outfit is generated -->
@@ -78,8 +82,38 @@
         <button id="save-generated-btn" class="btn-ghost">Save</button>
         <button id="like-btn" class="btn-ghost" aria-pressed="false">👍 Like it</button>
         <button id="skip-btn" class="btn-ghost">Skip</button>
+        <button id="plan-btn" class="btn-ghost" aria-expanded="false" aria-controls="plan-picker">📅 Plan it</button>
         <button id="wore-it-btn" class="btn-ghost wore-it">✓ Wore it today</button>
       </div>
+
+      <!-- opens under the buttons when you tap "Plan it" -->
+      <div id="plan-picker" class="panel plan-picker" hidden>
+        <fieldset class="field">
+          <legend>Which day?</legend>
+          <div id="plan-days" class="chips"></div>
+        </fieldset>
+        <button id="plan-save-btn" class="btn-primary">Save plan</button>
+      </div>
+    </section>
+
+    <!-- Your week (opened from Home, not from the bottom menu) -->
+    <section id="view-week" class="view" aria-labelledby="week-title" hidden>
+      <button id="week-back-btn" class="btn-link">‹ Today</button>
+      <h1 id="week-title" tabindex="-1">Your week</h1>
+      <p class="hint">Plan ahead. On the day, we check what's in the laundry and help you swap it.</p>
+
+      <fieldset class="field">
+        <legend>Style for new plans</legend>
+        <div class="chips">
+          <label class="chip"><input type="radio" name="plan-mood" value="" checked> Any</label>
+          <label class="chip"><input type="radio" name="plan-mood" value="sport"> Sport</label>
+          <label class="chip"><input type="radio" name="plan-mood" value="baggy"> Baggy</label>
+          <label class="chip"><input type="radio" name="plan-mood" value="classy"> Classy</label>
+          <label class="chip"><input type="radio" name="plan-mood" value="fit"> Fit</label>
+        </div>
+      </fieldset>
+
+      <ul id="week-list" class="week-list"></ul>
     </section>
 
     <!-- TAB 2: Outfits = the "mannequin" (flat lay) + saved outfits -->

@@ -736,7 +736,6 @@ body.logged-out { padding-bottom: 24px; }
 
 /* ---------- Wore it + laundry (v16) ---------- */
 #home-actions { grid-template-columns: 1fr 1fr; }
-#home-actions .wore-it { grid-column: 1 / -1; } /* full width under the two buttons */
 .worn { margin: 8px 0 0; color: var(--text-muted); font-size: 0.82rem; }
 .laundry-btn {
   margin-top: 10px; padding: 6px 12px; font: inherit; font-size: 0.85rem;
@@ -745,3 +744,26 @@ body.logged-out { padding-bottom: 24px; }
 }
 .laundry-btn[aria-pressed="true"] { color: #FFFFFF; background: var(--text); border-color: var(--text); }
 .card.in-laundry .card-photo { opacity: 0.4; } /* faded: not in your closet right now */
+
+/* ---------- Week planner (v18) ---------- */
+.view-head .btn-ghost { white-space: nowrap; }
+.plan-note { margin: 20px 0 0; font-weight: 500; color: var(--accent); }
+.plan-picker { margin-top: 12px; }
+.piece.in-laundry { outline: 2px dashed #8A4B1E; outline-offset: -2px; }
+.piece.in-laundry .piece-photo { opacity: 0.4; }
+
+.week-list { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 12px; }
+.week-day {
+  padding: 14px;
+  background: var(--surface);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+}
+.week-day.empty-day { background: transparent; box-shadow: none; border: 1px dashed var(--border); }
+.week-day-name { margin: 0 0 8px; font-weight: 700; }
+.week-day-name span { font-weight: 400; color: var(--text-muted); }
+.week-thumbs { list-style: none; padding: 0; margin: 0 0 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+.week-thumbs .piece-photo { width: 56px; font-size: 1.3rem; }
+.week-empty { margin: 0 0 10px; color: var(--text-muted); font-size: 0.9rem; }
+.week-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.week-buttons button { padding: 6px 14px; }

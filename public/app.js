@@ -20,8 +20,8 @@ const SLOTS = [
 
 // ---------- Screens (bottom menu) ----------
 
-// "create" has no tab of its own, so the Outfits tab stays lit while you're there
-const TAB_FOR = { create: "outfits" };
+// "create" and "week" have no tab of their own, so their parent tab stays lit while you're there
+const TAB_FOR = { create: "outfits", week: "home" };
 
 function showView(name) {
   for (const view of document.querySelectorAll(".view")) {
@@ -38,6 +38,7 @@ function showView(name) {
   if (name === "outfits") drawBoard();
   if (name === "create") drawCreate();
   if (name === "profile") drawProfile();
+  if (name === "week") drawWeek();
   // move keyboard / screen reader focus to the new screen's title
   document.querySelector("#view-" + name + " h1").focus();
   statusMessage.textContent = "";
@@ -175,10 +176,20 @@ async function loadClothes() {
 
 // ---------- Dates, wears and laundry (v16) ----------
 
-// today as "2026-10-25", in YOUR time zone (padStart adds the 0 in "09", like %02d in printf)
-function todayString() {
-  const d = new Date();
+// a date as "2026-10-25", in YOUR time zone (padStart adds the 0 in "09", like %02d in printf)
+function dateString(d) {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function todayString() {
+  return dateString(new Date());
+}
+
+// "in 3 days" as "2026-10-28". setDate(32) on October rolls over to November by itself
+function dayFromToday(offset) {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return dateString(d);
 }
 
 // how many days ago was "2026-10-23"? Both dates are read the same way, so the difference is exact
@@ -825,18 +836,19 @@ function pickRandom(items) {
 }
 
 // keeps only clothes that fit the weather (if we know it)
-function fitsWeather(item, slot) {
-  if (!currentWeather) return true;
+function fitsWeather(item, slot, weather) {
+  if (!weather) return true;
   const warmth = item.warmth || 2;
-  if (slot.type === "jacket" && currentWeather.rainy) return item.rainproof === true;
-  return Math.abs(warmth - currentWeather.target) <= 1;
+  if (slot.type === "jacket" && weather.rainy) return item.rainproof === true;
+  return Math.abs(warmth - weather.target) <= 1;
 }
 
 // all clothes that could go in this slot
-function candidatesFor(slot, style) {
-  // clothes in the laundry are not in your closet today, so they're never an option
-  const sameType = allClothes.filter((c) => c.type === slot.type && !c.inLaundry);
-  const goodWeather = sameType.filter((c) => fitsWeather(c, slot));
+// ignoreLaundry = true when we plan for another day: by then it will probably be washed
+function candidatesFor(slot, style, weather = currentWeather, ignoreLaundry = false) {
+  // clothes in the laundry are not in your closet today, so normally they're never an option
+  const sameType = allClothes.filter((c) => c.type === slot.type && (ignoreLaundry || !c.inLaundry));
+  const goodWeather = sameType.filter((c) => fitsWeather(c, slot, weather));
   const base = goodWeather.length > 0 ? goodWeather : sameType; // weather is a wish, not a must
 
   if (style === null) {
@@ -951,9 +963,27 @@ function pickBest(pool, slot, chosen) {
   return pickRandom(scored.filter((s) => s.points >= best - 1)).item;
 }
 
+// builds an outfit slot by slot and RETURNS it (it doesn't draw anything),
+// so Home and the week planner can both use it
+function buildOutfit(style, weather, ignoreLaundry) {
+  const outfit = [];
+  for (const slot of SLOTS) {
+    // the jacket only comes along when the weather asks for it
+    if (slot.type === "jacket" && weather && !weather.needJacket) continue;
+    const { pool, fallback } = candidatesFor(slot, style, weather, ignoreLaundry);
+    if (pool.length === 0) {
+      if (slot.required) outfit.push({ slot, item: null, fallback: false });
+      continue; // optional piece with nothing to choose: just skip it
+    }
+    const chosen = outfit.map((p) => p.item).filter(Boolean);
+    outfit.push({ slot, item: pickBest(pool, slot, chosen), fallback });
+  }
+  return outfit;
+}
+
 async function generate(style) {
   currentStyle = style;
-  currentOutfit = [];
+  currentPlanDay = null; // a fresh outfit, not a plan
 
   const weather = await readWeather();
   currentWeather = weather ? weatherRules(weather) : null;
@@ -961,18 +991,7 @@ async function generate(style) {
     weatherText.textContent = weather.text + " " + currentWeather.advice + ".";
   }
 
-  for (const slot of SLOTS) {
-    // the jacket only comes along when the weather asks for it
-    if (slot.type === "jacket" && currentWeather && !currentWeather.needJacket) continue;
-    const { pool, fallback } = candidatesFor(slot, style);
-    if (pool.length === 0) {
-      if (slot.required) currentOutfit.push({ slot, item: null, fallback: false });
-      continue; // optional piece with nothing to choose: just skip it
-    }
-    const chosen = currentOutfit.map((p) => p.item).filter(Boolean);
-    currentOutfit.push({ slot, item: pickBest(pool, slot, chosen), fallback });
-  }
-
+  currentOutfit = buildOutfit(style, currentWeather, false);
   drawOutfit();
 
   const missing = currentOutfit.filter((p) => p.item === null).map((p) => p.slot.label.toLowerCase());
@@ -995,10 +1014,13 @@ function swapPiece(index) {
   }
   const rest = currentOutfit.filter((p) => p !== piece).map((p) => p.item).filter(Boolean);
   // you swapped it out = "this piece doesn't go with the rest". The robot remembers that.
-  learn(rest.map((other) => [piece.item.id, other.id]), -1);
+  // Except when it's in the laundry: then it's not about taste, so we learn nothing.
+  if (!piece.item.inLaundry) learn(rest.map((other) => [piece.item.id, other.id]), -1);
   piece.item = pickBest(others, piece.slot, rest); // the new piece must still go with the others
   drawOutfit();
   statusMessage.textContent = piece.slot.label + " swapped to " + piece.item.name + ".";
+  // looking at a plan? Then the plan for THAT day changes too (and only that day)
+  if (currentPlanDay) savePlan(currentPlanDay, currentOutfit.filter((p) => p.item).map((p) => p.item.id));
   // keep focus on the same swap button so keyboard users don't get lost
   const button = outfitList.querySelectorAll(".swap-btn")[index];
   if (button) button.focus();
@@ -1006,6 +1028,7 @@ function swapPiece(index) {
 
 function drawOutfit() {
   outfitList.innerHTML = "";
+  const isToday = currentPlanDay === null || currentPlanDay === todayString();
 
   currentOutfit.forEach((piece, index) => {
     const li = document.createElement("li");
@@ -1034,6 +1057,14 @@ function drawOutfit() {
     } else {
       fillPhoto(photo, piece.item);
       name.textContent = piece.item.name;
+      // the laundry only matters TODAY: for another day we can't know yet
+      if (isToday && piece.item.inLaundry) {
+        li.classList.add("in-laundry");
+        const note = document.createElement("p");
+        note.className = "piece-note";
+        note.textContent = "It's in the laundry. Tap ↻ to swap it.";
+        text.appendChild(note);
+      }
       if (piece.fallback) {
         const note = document.createElement("p");
         note.className = "piece-note";
@@ -1053,6 +1084,15 @@ function drawOutfit() {
   });
 
   homeActions.hidden = currentOutfit.every((p) => p.item === null);
+  planPicker.hidden = true;
+  planButton.setAttribute("aria-expanded", "false");
+  woreItButton.hidden = !isToday; // you can't wear Saturday's plan today
+  if (currentPlanDay) {
+    planNote.textContent = "📅 Your plan for " + dayInSentence(currentPlanDay);
+    planNote.hidden = false;
+  } else {
+    planNote.hidden = true;
+  }
   woreItButton.disabled = false; // a new outfit can be worn again
   woreItButton.textContent = "✓ Wore it today";
   likeButton.disabled = false;
@@ -1137,6 +1177,198 @@ document.getElementById("save-generated-btn").addEventListener("click", async ()
   const saved = await saveOutfit(outfitFromHome());
   if (saved) statusMessage.textContent = saved.name + " saved to Outfits.";
 });
+
+// ---------- Week planner (v18) ----------
+// allPlans["2026-10-31"] = [3, 8, 12]: the ids of the pieces planned for that day.
+// Only ids, like pointers in C: the clothes themselves stay in allClothes.
+let allPlans = {};
+let currentPlanDay = null; // null = Home shows a normal outfit, "2026-10-31" = it shows that day's plan
+
+const planNote = document.getElementById("plan-note");
+const planButton = document.getElementById("plan-btn");
+const planPicker = document.getElementById("plan-picker");
+const planDays = document.getElementById("plan-days");
+const weekList = document.getElementById("week-list");
+const DAYS_AHEAD = 7;
+
+// "2026-10-31" -> "Today", "Tomorrow" or "Saturday 1 Nov"
+function dayLabel(day) {
+  if (day === todayString()) return "Today";
+  if (day === dayFromToday(1)) return "Tomorrow";
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" });
+}
+
+// inside a sentence: "for today", but "for Saturday 1 Nov" (names of days keep their capital)
+function dayInSentence(day) {
+  const label = dayLabel(day);
+  return label === "Today" || label === "Tomorrow" ? label.toLowerCase() : label;
+}
+
+async function loadPlans() {
+  try {
+    const response = await api("/api/plans?from=" + todayString()); // old days don't matter any more
+    if (!response.ok) return;
+    allPlans = {};
+    for (const plan of await response.json()) allPlans[plan.day] = plan.itemIds;
+  } catch (error) {
+    // offline: no plans this time
+  }
+}
+
+async function savePlan(day, itemIds) {
+  const response = await api("/api/plans/" + day, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ itemIds })
+  });
+  if (!response.ok) {
+    statusMessage.textContent = "Couldn't save the plan. Try again.";
+    return false;
+  }
+  allPlans[day] = itemIds;
+  return true;
+}
+
+async function removePlan(day) {
+  const response = await api("/api/plans/" + day, { method: "DELETE" });
+  if (response.ok) delete allPlans[day];
+}
+
+// ids -> the clothes themselves (a deleted item simply disappears from the plan)
+function planItems(day) {
+  return (allPlans[day] || []).map((id) => allClothes.find((c) => c.id === id)).filter(Boolean);
+}
+
+// shows a day's plan on Home, in the same slots a generated outfit uses, so ↻ works too
+function showPlan(day) {
+  const items = planItems(day);
+  currentPlanDay = day;
+  currentStyle = null;
+  currentOutfit = [];
+  for (const slot of SLOTS) {
+    const item = items.find((c) => c.type === slot.type);
+    if (item) currentOutfit.push({ slot, item, fallback: false });
+  }
+  drawOutfit();
+  const washing = day === todayString() ? currentOutfit.filter((p) => p.item.inLaundry).length : 0;
+  statusMessage.textContent = washing > 0
+    ? washing + (washing === 1 ? " piece is" : " pieces are") + " in the laundry. Tap ↻ to swap."
+    : "";
+}
+
+// "Plan it": the chips with the next 7 days
+function drawPlanDays() {
+  planDays.innerHTML = "";
+  for (let offset = 0; offset < DAYS_AHEAD; offset++) {
+    const day = dayFromToday(offset);
+    const label = document.createElement("label");
+    label.className = "chip";
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "plan-day";
+    radio.value = day;
+    radio.checked = currentPlanDay ? day === currentPlanDay : offset === 1; // tomorrow by default
+    label.append(radio, " " + dayLabel(day) + (allPlans[day] ? " •" : ""));
+    if (allPlans[day]) label.title = "Already planned: saving replaces it";
+    planDays.appendChild(label);
+  }
+}
+
+planButton.addEventListener("click", () => {
+  const open = planPicker.hidden;
+  if (open) drawPlanDays();
+  planPicker.hidden = !open;
+  planButton.setAttribute("aria-expanded", String(open));
+});
+
+document.getElementById("plan-save-btn").addEventListener("click", async () => {
+  const day = document.querySelector('input[name="plan-day"]:checked').value;
+  const ids = currentOutfit.filter((p) => p.item).map((p) => p.item.id);
+  if (!(await savePlan(day, ids))) return;
+  planPicker.hidden = true;
+  planButton.setAttribute("aria-expanded", "false");
+  statusMessage.textContent = "Planned for " + dayInSentence(day) + ".";
+});
+
+// the week screen: one card per day
+function drawWeek() {
+  weekList.innerHTML = "";
+  for (let offset = 0; offset < DAYS_AHEAD; offset++) {
+    const day = dayFromToday(offset);
+    const items = planItems(day);
+
+    const li = document.createElement("li");
+    li.className = "week-day" + (items.length === 0 ? " empty-day" : "");
+    const title = document.createElement("p");
+    title.className = "week-day-name";
+    title.textContent = dayLabel(day);
+    li.appendChild(title);
+
+    const buttons = document.createElement("div");
+    buttons.className = "week-buttons";
+
+    if (items.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "week-empty";
+      empty.textContent = "Nothing planned.";
+      li.appendChild(empty);
+      buttons.appendChild(weekButton("✨ Plan an outfit", "Plan an outfit for " + dayLabel(day), () => planDay(day)));
+    } else {
+      const thumbs = document.createElement("ul");
+      thumbs.className = "week-thumbs";
+      thumbs.setAttribute("aria-label", items.map((i) => i.name).join(", "));
+      for (const item of items) {
+        const thumb = document.createElement("li");
+        thumb.className = "piece-photo";
+        fillPhoto(thumb, item);
+        thumbs.appendChild(thumb);
+      }
+      li.appendChild(thumbs);
+      buttons.append(
+        weekButton("Open", "Open the plan for " + dayLabel(day), () => {
+          showView("home");
+          showPlan(day);
+        }),
+        weekButton("↻ New", "Plan a different outfit for " + dayLabel(day), () => planDay(day)),
+        weekButton("Remove", "Remove the plan for " + dayLabel(day), async () => {
+          await removePlan(day);
+          if (currentPlanDay === day) currentPlanDay = null;
+          drawWeek();
+          statusMessage.textContent = "Plan for " + dayInSentence(day) + " removed.";
+        })
+      );
+    }
+    li.appendChild(buttons);
+    weekList.appendChild(li);
+  }
+}
+
+function weekButton(text, label, onClick) {
+  const button = document.createElement("button");
+  button.className = "btn-ghost";
+  button.textContent = text;
+  button.setAttribute("aria-label", label);
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+// a new outfit for a future day: no weather (we don't know it yet) and the laundry is ignored
+async function planDay(day) {
+  const style = document.querySelector('input[name="plan-mood"]:checked').value || null;
+  const outfit = buildOutfit(style, null, true);
+  const ids = outfit.filter((p) => p.item).map((p) => p.item.id);
+  if (ids.length === 0) {
+    statusMessage.textContent = "Add some clothes first, then we can plan.";
+    return;
+  }
+  if (!(await savePlan(day, ids))) return;
+  drawWeek();
+  statusMessage.textContent = "Planned an outfit for " + dayInSentence(day) + ".";
+}
+
+document.getElementById("week-btn").addEventListener("click", () => showView("week"));
+document.getElementById("week-back-btn").addEventListener("click", () => showView("home"));
 
 // ---------- Outfits: the flat lay "mannequin" ----------
 
@@ -1644,14 +1876,17 @@ document.getElementById("logout-btn").addEventListener("click", async () => {
   await fetch("/api/logout", { method: "POST" });
   allClothes = [];
   allOutfits = [];
+  allPlans = {};
   showAuth();
 });
 
 async function enterApp(user) {
   document.getElementById("account-name").textContent = user.username;
   document.body.classList.remove("logged-out");
-  await Promise.all([loadClothes(), loadOutfits(), loadFeatures(), loadPairs()]);
+  await Promise.all([loadClothes(), loadOutfits(), loadFeatures(), loadPairs(), loadPlans()]);
   showView("home");
+  // you planned today already? Then that's what you see first
+  if (allPlans[todayString()]) showPlan(todayString());
 }
 
 async function start() {

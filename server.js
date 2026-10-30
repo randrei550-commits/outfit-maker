@@ -117,6 +117,19 @@ db.exec(`
     PRIMARY KEY (item_a, item_b),
     CHECK (item_a < item_b)
   );
+
+  -- NEW in v18: the week planner. One row = "on day Y I plan to wear item X".
+  -- Different from wears: wears is a diary (the past, never changes),
+  -- plan_items is an agenda (the future, you can change it any time).
+  -- It points at PIECES, not at a saved outfit, so swapping one piece on Thursday
+  -- changes only Thursday, never your saved outfits.
+  CREATE TABLE IF NOT EXISTS plan_items (
+    owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day      TEXT NOT NULL,
+    item_id  INTEGER NOT NULL REFERENCES clothes(id) ON DELETE CASCADE,
+    UNIQUE (owner_id, day, item_id)
+  );
+  CREATE INDEX IF NOT EXISTS plans_by_owner_day ON plan_items(owner_id, day);
 `);
 
 // all-or-nothing: if anything inside fn fails, every change is undone (ROLLBACK)
@@ -477,6 +490,52 @@ app.post("/api/wears", requireUser, (req, res) => {
     for (const id of ids) add.run(id, date);
   });
   res.status(201).json({ itemIds: ids, date });
+});
+
+// ---------- Week planner (v18) ----------
+
+const DAY_FORMAT = /^\d{4}-\d{2}-\d{2}$/; // "2026-10-30"
+
+// your plans from a day onwards: [{ day: "2026-10-31", itemIds: [3, 8, 12] }, ...]
+// "from" comes from the phone, for the same reason as in /api/wears: today depends on where YOU are
+app.get("/api/plans", requireUser, (req, res) => {
+  const from = DAY_FORMAT.test(req.query.from || "") ? req.query.from : "0000-00-00";
+  const rows = db.prepare(
+    "SELECT day, item_id FROM plan_items WHERE owner_id = ? AND day >= ? ORDER BY day, item_id"
+  ).all(req.user.id, from);
+  // rows come one per item; we group them by day (like counting into buckets in C)
+  const byDay = {};
+  for (const row of rows) {
+    if (!byDay[row.day]) byDay[row.day] = [];
+    byDay[row.day].push(row.item_id);
+  }
+  res.json(Object.keys(byDay).map((day) => ({ day, itemIds: byDay[day] })));
+});
+
+// PUT = "this is the WHOLE plan for that day now". We delete the old one and write the new one,
+// inside a transaction, so nobody ever sees half a plan.
+app.put("/api/plans/:day", requireUser, (req, res) => {
+  const day = req.params.day;
+  const { itemIds } = req.body;
+  if (!DAY_FORMAT.test(day) || !Array.isArray(itemIds) || itemIds.length === 0) {
+    return res.status(400).json({ error: "Send a day like 2026-10-31 and some items." });
+  }
+  const ids = [...new Set(itemIds.map(Number))];
+  const isMine = db.prepare("SELECT 1 FROM clothes WHERE id = ? AND owner_id = ?");
+  if (!ids.every((id) => isMine.get(id, req.user.id))) {
+    return res.status(400).json({ error: "Some of those items aren't in your wardrobe." });
+  }
+  transaction(() => {
+    db.prepare("DELETE FROM plan_items WHERE owner_id = ? AND day = ?").run(req.user.id, day);
+    const add = db.prepare("INSERT INTO plan_items (owner_id, day, item_id) VALUES (?, ?, ?)");
+    for (const id of ids) add.run(req.user.id, day, id);
+  });
+  res.json({ day, itemIds: ids });
+});
+
+app.delete("/api/plans/:day", requireUser, (req, res) => {
+  db.prepare("DELETE FROM plan_items WHERE owner_id = ? AND day = ?").run(req.user.id, req.params.day);
+  res.status(204).end();
 });
 
 app.delete("/api/clothes/:id", requireUser, (req, res) => {
