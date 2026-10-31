@@ -76,6 +76,12 @@
       <p id="plan-note" class="plan-note" hidden></p>
       <ul id="outfit" class="outfit" aria-label="Your outfit"></ul>
 
+      <!-- v19: accessories are suggested, you add them if you like -->
+      <div id="extras" hidden>
+        <h2 class="section-title extras-title">Would you also wear…?</h2>
+        <ul id="extras-list" class="extras-list"></ul>
+      </div>
+
       <!-- shows up after an outfit is generated -->
       <div id="home-actions" class="actions actions-even" hidden>
         <button id="style-it-btn" class="btn-primary">See it styled</button>
@@ -269,6 +275,13 @@
     <section id="view-profile" class="view" aria-labelledby="profile-title" hidden>
       <h1 id="profile-title" tabindex="-1">Profile</h1>
       <ul id="stats" class="stats"></ul>
+      <!-- v20: weekly stats -->
+      <h2 class="section-title">This week</h2>
+      <ul id="week-stats" class="stats"></ul>
+      <h2 class="section-title">Forgotten clothes</h2>
+      <p class="hint">Not worn in the last 30 days. Give them a chance, or maybe it's time to donate them.</p>
+      <ul id="forgotten" class="breakdown"></ul>
+
       <h2 class="section-title">Your wardrobe</h2>
       <ul id="type-breakdown" class="breakdown"></ul>
       <h2 class="section-title">Most worn</h2>

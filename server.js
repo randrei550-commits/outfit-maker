@@ -492,6 +492,51 @@ app.post("/api/wears", requireUser, (req, res) => {
   res.status(201).json({ itemIds: ids, date });
 });
 
+// ---------- Weekly stats (v20) ----------
+// Everything is COUNTED from the wears diary when you ask, so the numbers can never be out of date.
+// "today" comes from the phone, like in /api/wears.
+app.get("/api/stats", requireUser, (req, res) => {
+  const today = /^\d{4}-\d{2}-\d{2}$/.test(req.query.today || "") ? req.query.today : new Date().toISOString().slice(0, 10);
+
+  // how many DIFFERENT days of the last 7 you pressed "Wore it" (DISTINCT: 3 items on one day = 1 day)
+  const week = db.prepare(`
+    SELECT COUNT(DISTINCT wears.worn_on) AS days
+    FROM wears JOIN clothes ON clothes.id = wears.item_id
+    WHERE clothes.owner_id = ? AND wears.worn_on > date(?, '-7 days') AND wears.worn_on <= ?
+  `).get(req.user.id, today, today);
+
+  // the style you WORE most this week. styles is saved as JSON text like ["sport","baggy"],
+  // and json_each() turns it into rows, one per style, so we can GROUP BY them
+  const style = db.prepare(`
+    SELECT style.value AS name, COUNT(*) AS times
+    FROM wears
+    JOIN clothes ON clothes.id = wears.item_id
+    JOIN json_each(clothes.styles) AS style
+    WHERE clothes.owner_id = ? AND wears.worn_on > date(?, '-7 days') AND wears.worn_on <= ?
+    GROUP BY style.value
+    ORDER BY times DESC
+    LIMIT 1
+  `).get(req.user.id, today, today);
+
+  // clothes you forgot: never worn (MAX gives NULL, not 0!) or not in the last 30 days.
+  // HAVING is like WHERE, but it runs AFTER the grouping, so it can look at MAX()
+  const forgotten = db.prepare(`
+    SELECT clothes.id, clothes.name, MAX(wears.worn_on) AS last_worn
+    FROM clothes
+    LEFT JOIN wears ON wears.item_id = clothes.id
+    WHERE clothes.owner_id = ?
+    GROUP BY clothes.id
+    HAVING last_worn IS NULL OR last_worn < date(?, '-30 days')
+    ORDER BY last_worn IS NOT NULL, last_worn
+  `).all(req.user.id, today);
+
+  res.json({
+    daysThisWeek: week.days,
+    weekStyle: style ? style.name : null,
+    forgotten: forgotten.map((r) => ({ id: r.id, name: r.name, lastWorn: r.last_worn }))
+  });
+});
+
 // ---------- Week planner (v18) ----------
 
 const DAY_FORMAT = /^\d{4}-\d{2}-\d{2}$/; // "2026-10-30"

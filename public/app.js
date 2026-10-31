@@ -779,6 +779,9 @@ const surpriseButton = document.getElementById("surprise-btn");
 const homeActions = document.getElementById("home-actions");
 
 let currentOutfit = []; // what is on screen right now
+let currentExtras = []; // accessories we suggest under it (v19)
+const extrasBox = document.getElementById("extras");
+const extrasList = document.getElementById("extras-list");
 let currentStyle = null; // null = "Surprise me" (all clothes)
 let currentWeather = null;
 
@@ -988,10 +991,11 @@ function pickBest(pool, slot, chosen) {
 }
 
 // builds an outfit slot by slot and RETURNS it (it doesn't draw anything),
-// so Home and the week planner can both use it
+// so Home and the week planner can both use it. Accessories are NOT in it: they're suggestions.
 function buildOutfit(style, weather, ignoreLaundry) {
   const outfit = [];
   for (const slot of SLOTS) {
+    if (slot.extra) continue; // see suggestExtras()
     // the jacket only comes along when the weather asks for it
     if (slot.type === "jacket" && weather && !weather.needJacket) continue;
     if (slot.notWith && slot.notWith.includes(style)) continue; // e.g. no bracelets with Sport
@@ -1001,12 +1005,53 @@ function buildOutfit(style, weather, ignoreLaundry) {
       continue; // optional piece with nothing to choose: just skip it
     }
     const chosen = outfit.map((p) => p.item).filter(Boolean);
-    const best = pickBest(pool, slot, chosen);
-    // an accessory has to EARN its place: only if it scores above 0 with the rest
-    if (slot.extra && score(best, slot, chosen) <= 0) continue;
-    outfit.push({ slot, item: best, fallback });
+    outfit.push({ slot, item: pickBest(pool, slot, chosen), fallback });
   }
   return outfit;
+}
+
+// v19: "Would you also wear...?" Accessories are offered, YOU decide (Andrei's idea).
+// One suggestion per free body zone, and only if it scores above 0 with the outfit.
+function suggestExtras(outfit, style, weather) {
+  const chosen = outfit.map((p) => p.item).filter(Boolean);
+  const suggestions = [];
+  for (const slot of SLOTS) {
+    if (!slot.extra || outfit.some((p) => p.slot === slot)) continue; // not an accessory, or already worn
+    if (slot.notWith && slot.notWith.includes(style)) continue;       // e.g. no bracelets with Sport
+    const { pool } = candidatesFor(slot, style, weather, false);
+    if (pool.length === 0) continue;
+    const best = pickBest(pool, slot, chosen);
+    if (score(best, slot, chosen) > 0) suggestions.push({ slot, item: best, fallback: false });
+  }
+  return suggestions;
+}
+
+// sorts pieces in the SLOTS order (top, pants, shoes, jacket, head, neck, wrist)
+function bySlotOrder(a, b) {
+  return SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot);
+}
+
+// tap "+ Add": the accessory moves from the suggestions into the outfit
+function addExtra(index) {
+  const piece = currentExtras.splice(index, 1)[0]; // splice = take it out of the array
+  const rest = currentOutfit.map((p) => p.item).filter(Boolean);
+  currentOutfit.push(piece);
+  currentOutfit.sort(bySlotOrder);
+  // you chose it yourself = a strong "goes well together". The robot remembers that.
+  learn(rest.map((other) => [piece.item.id, other.id]), 1);
+  if (currentPlanDay) savePlan(currentPlanDay, currentOutfit.filter((p) => p.item).map((p) => p.item.id));
+  drawOutfit();
+  statusMessage.textContent = piece.item.name + " added to your outfit.";
+}
+
+// "×" on an accessory: back to the suggestions, no penalty (maybe you just don't feel like it today)
+function removeExtra(index) {
+  const piece = currentOutfit.splice(index, 1)[0];
+  currentExtras.push(piece);
+  currentExtras.sort(bySlotOrder);
+  if (currentPlanDay) savePlan(currentPlanDay, currentOutfit.filter((p) => p.item).map((p) => p.item.id));
+  drawOutfit();
+  statusMessage.textContent = piece.item.name + " taken off.";
 }
 
 async function generate(style) {
@@ -1020,6 +1065,7 @@ async function generate(style) {
   }
 
   currentOutfit = buildOutfit(style, currentWeather, false);
+  currentExtras = suggestExtras(currentOutfit, style, currentWeather);
   drawOutfit();
 
   const missing = currentOutfit.filter((p) => p.item === null).map((p) => p.slot.label.toLowerCase());
@@ -1105,11 +1151,46 @@ function drawOutfit() {
       swap.textContent = "↻";
       swap.setAttribute("aria-label", "Swap " + piece.slot.label.toLowerCase() + ", now " + piece.item.name);
       swap.addEventListener("click", () => swapPiece(index));
-      li.append(photo, text, swap);
+      if (piece.slot.extra) {
+        // accessories can also be taken off
+        const remove = document.createElement("button");
+        remove.className = "swap-btn";
+        remove.textContent = "×";
+        remove.setAttribute("aria-label", "Take off " + piece.item.name);
+        remove.addEventListener("click", () => removeExtra(index));
+        const buttons = document.createElement("div");
+        buttons.className = "piece-buttons";
+        buttons.append(swap, remove);
+        li.append(photo, text, buttons);
+      } else {
+        li.append(photo, text, swap);
+      }
     }
 
     outfitList.appendChild(li);
   });
+
+  // "Would you also wear...?" under the outfit
+  extrasList.innerHTML = "";
+  currentExtras.forEach((piece, index) => {
+    const li = document.createElement("li");
+    li.className = "extra-card";
+    const photo = document.createElement("div");
+    photo.className = "piece-photo";
+    photo.setAttribute("aria-hidden", "true");
+    fillPhoto(photo, piece.item);
+    const name = document.createElement("p");
+    name.className = "piece-name";
+    name.textContent = piece.item.name;
+    const add = document.createElement("button");
+    add.className = "btn-ghost";
+    add.textContent = "+ Add";
+    add.setAttribute("aria-label", "Add " + piece.item.name + " to the outfit");
+    add.addEventListener("click", () => addExtra(index));
+    li.append(photo, name, add);
+    extrasList.appendChild(li);
+  });
+  extrasBox.hidden = currentExtras.length === 0;
 
   homeActions.hidden = currentOutfit.every((p) => p.item === null);
   planPicker.hidden = true;
@@ -1278,6 +1359,7 @@ function showPlan(day) {
     const item = items.find((c) => c.type === slot.type);
     if (item) currentOutfit.push({ slot, item, fallback: false });
   }
+  currentExtras = suggestExtras(currentOutfit, null, day === todayString() ? currentWeather : null);
   drawOutfit();
   const washing = day === todayString() ? currentOutfit.filter((p) => p.item.inLaundry).length : 0;
   statusMessage.textContent = washing > 0
@@ -1839,6 +1921,8 @@ function drawProfile() {
     mostWorn.appendChild(li);
   }
 
+  drawWeekStats(); // no await: the rest of the page doesn't wait for it
+
   const breakdown = document.getElementById("type-breakdown");
   breakdown.innerHTML = "";
   for (const slot of SLOTS) {
@@ -1850,6 +1934,54 @@ function drawProfile() {
     number.textContent = count;
     li.append(name, number);
     breakdown.appendChild(li);
+  }
+}
+
+// ---------- Weekly stats (v20) ----------
+// the server does the counting (SQL is very good at it), we only draw
+async function drawWeekStats() {
+  const tiles = document.getElementById("week-stats");
+  const forgottenList = document.getElementById("forgotten");
+  let stats;
+  try {
+    const response = await api("/api/stats?today=" + todayString());
+    if (!response.ok) return;
+    stats = await response.json();
+  } catch (error) {
+    return; // offline: just no stats this time
+  }
+
+  tiles.innerHTML = "";
+  const values = [
+    { value: stats.daysThisWeek + "/7", label: "Days dressed" },
+    { value: stats.weekStyle ? capitalize(stats.weekStyle) : "–", label: "Worn style" },
+    { value: stats.forgotten.length, label: "Forgotten" }
+  ];
+  for (const tile of values) {
+    const li = document.createElement("li");
+    li.className = "stat";
+    const value = document.createElement("strong");
+    value.textContent = tile.value;
+    const label = document.createElement("span");
+    label.textContent = tile.label;
+    li.append(value, label);
+    tiles.appendChild(li);
+  }
+
+  forgottenList.innerHTML = "";
+  if (stats.forgotten.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = "Nothing forgotten. You wear everything you own!";
+    forgottenList.appendChild(li);
+  }
+  for (const item of stats.forgotten.slice(0, 5)) { // the 5 most forgotten, never worn first
+    const li = document.createElement("li");
+    const name = document.createElement("span");
+    name.textContent = item.name;
+    const when = document.createElement("span");
+    when.textContent = item.lastWorn ? wornWhen(item.lastWorn) : "never worn";
+    li.append(name, when);
+    forgottenList.appendChild(li);
   }
 }
 

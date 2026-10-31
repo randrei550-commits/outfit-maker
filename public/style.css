@@ -771,3 +771,19 @@ body.logged-out { padding-bottom: 24px; }
 /* ---------- Accessories (v19) ---------- */
 /* small pieces on the board: a smaller tile, so the name still fits */
 .board-piece.no-photo.small { padding: 3px; border-radius: 12px; font-size: 0.75rem; line-height: 1.2; }
+.piece-buttons { display: flex; gap: 6px; }
+.extras-title { font-size: 1.3rem; margin: 24px 0 10px; }
+.extras-list { list-style: none; padding: 0; margin: 0; display: flex; gap: 10px; overflow-x: auto; }
+.extra-card {
+  flex: 0 0 132px;
+  padding: 10px;
+  background: var(--surface);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  text-align: center;
+}
+.extra-card .piece-name { font-size: 0.9rem; }
+.extra-card .btn-ghost { width: 100%; padding: 6px 0; }
