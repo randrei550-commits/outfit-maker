@@ -1,18 +1,21 @@
 /* ---------- Design tokens (like #define in C) ---------- */
 :root {
-  --bg: #F5F1EA;          /* cream */
+  /* v21 redesign: sage + black (Andrei's pick). Change a colour here = it changes everywhere */
+  --bg: #F1F2EF;          /* light grey, a tiny bit green */
   --surface: #FFFFFF;     /* cards */
-  --text: #2B2620;        /* almost black brown */
-  --text-muted: #6B645B;  /* secondary text */
-  --accent: #5E5E44;      /* olive */
-  --accent-soft: #E8E6DA; /* light olive for selected chips */
-  --border: #E2DCD2;
-  --studio: #EFEBE4;     /* background behind cut out clothes */
+  --text: #111014;        /* almost black */
+  --text-muted: #6B6870;  /* secondary text */
+  --sage: #B9D8C2;        /* the main colour: menu pill, arrow, highlights */
+  --accent: #3F6E52;      /* dark sage: readable as text and focus outlines */
+  --accent-soft: #EAF4EC; /* light sage behind icons and labels */
+  --chip: #E6E7E3;        /* round icon buttons, weather pill */
+  --border: #E2E3DF;
+  --studio: #F5F6F3;     /* background behind cut out clothes */
   --radius-lg: 24px;
   --radius-pill: 999px;
-  --shadow: 0 4px 16px rgba(43, 38, 32, 0.06);
-  --font-title: "Cormorant Garamond", Georgia, serif;
-  --font-body: ui-rounded, "SF Pro Rounded", "DM Sans", system-ui, sans-serif; /* SF Pro Rounded on Apple, DM Sans elsewhere */
+  --shadow: 0 4px 16px rgba(17, 16, 20, 0.06);
+  --font-title: "Abril Fatface", Georgia, serif;   /* fat display headings */
+  --font-body: "DM Sans", system-ui, sans-serif;
 }
 
 /* ---------- Base ---------- */
@@ -33,7 +36,7 @@ main, .top {
   padding: 0 16px;
 }
 
-h1, h2 { font-family: var(--font-title); font-weight: 600; margin: 0; }
+h1, h2 { font-family: var(--font-title); font-weight: 400; margin: 0; }
 h1 { font-size: 2.4rem; line-height: 1.1; }
 h2 { font-size: 1.6rem; margin-bottom: 16px; }
 
@@ -787,3 +790,133 @@ body.logged-out { padding-bottom: 24px; }
 }
 .extra-card .piece-name { font-size: 0.9rem; }
 .extra-card .btn-ghost { width: 100%; padding: 6px 0; }
+
+/* =====================================================================
+   v21 REDESIGN (sage + black, fat headings, line icons)
+   Written AFTER the old rules, so when two rules fight, these win
+   (in CSS, the later rule wins when they are equally specific).
+   ===================================================================== */
+h1 { font-size: 2.1rem; line-height: 1.05; }
+.icon { display: block; flex: none; }
+.drawing { width: 64%; height: 64%; filter: drop-shadow(0 6px 8px rgba(17, 16, 20, 0.12)); }
+
+/* round icon buttons (back, week, stats, create) */
+.icon-btn {
+  width: 44px; height: 44px; flex: none;
+  display: grid; place-items: center;
+  color: var(--text); background: var(--chip);
+  border: none; border-radius: 50%; cursor: pointer;
+}
+.icon-btn.dark { color: #FFFFFF; background: var(--text); }
+.top-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.top-bar h1 { margin: 0; font-size: 1.8rem; }
+
+/* ---------- Home ---------- */
+.hello-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.avatar {
+  width: 46px; height: 46px; flex: none; border-radius: 50%;
+  display: grid; place-items: center;
+  color: #FFFFFF; font-weight: 700; font-size: 1.1rem;
+  background: linear-gradient(135deg, #F6A86B, #E07A5F);
+}
+.hello { margin: 0; flex: 1; line-height: 1.2; }
+.hello small { display: block; color: var(--text-muted); font-size: 0.75rem; }
+#home-title { margin: 0 0 14px; max-width: 13ch; }
+.weather-pill {
+  display: flex; align-items: center; gap: 10px; margin: 0;
+  padding: 10px 16px; font-size: 0.9rem;
+  background: var(--chip); border-radius: var(--radius-pill);
+}
+.mood-field { margin: 12px 0 0; }
+.generate-card {
+  width: 100%; margin-top: 14px; padding: 18px 18px 18px 22px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  font: inherit; text-align: left; color: #FFFFFF;
+  background: var(--text); border: none; border-radius: 28px; cursor: pointer;
+}
+.generate-card strong { display: block; font-family: var(--font-title); font-weight: 400; font-size: 1.6rem; line-height: 1.1; }
+.generate-card small { color: #C9C6CC; font-size: 0.8rem; }
+.go {
+  width: 52px; height: 52px; flex: none; border-radius: 50%;
+  display: grid; place-items: center; color: var(--text); background: var(--sage);
+  transition: transform 0.15s;
+}
+.generate-card:hover .go { transform: translateX(3px); }
+.surprise { display: block; margin: 2px auto 0; }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+.tile {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 14px 6px 6px; font: inherit; color: var(--text);
+  background: var(--surface); border: none; border-radius: 24px; cursor: pointer;
+}
+.tile-icon { width: 58px; height: 58px; border-radius: 18px; display: grid; place-items: center; color: var(--accent); background: var(--accent-soft); }
+.tile-label { width: 100%; padding: 8px; background: var(--accent-soft); border-radius: 18px; }
+.tile-label strong { display: block; font-size: 0.9rem; }
+.tile-label small { color: var(--text-muted); font-size: 0.75rem; }
+
+/* ---------- Chips: white pills, black when chosen ---------- */
+.chip { background: var(--surface); border: none; padding: 8px 15px; font-size: 0.9rem; position: relative; }
+.chip input { position: absolute; opacity: 0; pointer-events: none; }
+.chip:has(input:checked) { color: #FFFFFF; background: var(--text); }
+.chip:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- Buttons ---------- */
+.btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--text); }
+.btn-primary:hover { background: #2A2930; }
+.btn-ghost {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: var(--surface); border: none; font-weight: 700;
+}
+.btn-ghost[aria-pressed="true"] { color: #FFFFFF; background: var(--text); }
+#home-actions .wore-it, #home-actions #style-it-btn { color: #FFFFFF; background: var(--text); }
+.btn-soft { display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--accent-soft); font-weight: 700; }
+.btn-link { color: var(--accent); font-weight: 700; }
+.laundry-btn { display: inline-flex; align-items: center; gap: 5px; background: var(--bg); border: none; }
+.laundry-btn[aria-pressed="true"] { color: #FFFFFF; background: var(--text); }
+
+/* ---------- Cards, pieces, panels: flat white, no heavy shadows ---------- */
+.panel, .card, .piece, .stat { box-shadow: none; }
+.panel { border-radius: 28px; }
+.card-photo, .piece-photo { background: var(--studio); }
+.piece { border-radius: 22px; }
+.piece-photo .drawing { width: 78%; height: 78%; }
+.piece.missing .drawing { opacity: 0.4; }
+.swap-btn { display: grid; place-items: center; border: none; background: var(--bg); }
+.swap-btn:hover { background: var(--accent-soft); }
+.tag { background: var(--accent-soft); }
+.status { color: var(--accent); }
+.plan-note { display: flex; align-items: center; gap: 6px; color: var(--accent); }
+
+/* ---------- Bottom menu: a black pill, the open tab is sage and shows its name ---------- */
+.bottom-nav {
+  display: flex; justify-content: space-around; align-items: center; gap: 4px;
+  width: min(460px, calc(100% - 32px)); padding: 7px;
+  background: var(--text); border: none; backdrop-filter: none;
+  box-shadow: 0 10px 30px rgba(17, 16, 20, 0.25);
+}
+.nav-btn {
+  flex-direction: row; justify-content: center; gap: 8px;
+  min-width: 54px; min-height: 54px; padding: 0 14px;
+  font-size: 0.85rem; font-weight: 700; color: #B8B5BB;
+}
+/* the name is hidden for the eyes but still read by screen readers */
+.nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.nav-btn[aria-current="page"] { color: var(--text); background: var(--sage); }
+.nav-btn[aria-current="page"] .nav-label { position: static; width: auto; height: auto; clip: auto; overflow: visible; }
+.nav-add, .nav-add[aria-current="page"] {
+  flex: none; width: 48px; min-width: 48px; height: 48px; min-height: 48px; padding: 0;
+  color: var(--text); background: #FFFFFF; border-radius: 50%;
+}
+.nav-add[aria-current="page"] { outline: 3px solid var(--sage); }
+
+/* ---------- Profile stats: one black, one sage, one white ---------- */
+.stats .stat:first-child { color: #FFFFFF; background: var(--text); }
+.stats .stat:first-child span { color: #C9C6CC; }
+.stats .stat:nth-child(2) { background: var(--sage); }
+.stats .stat:nth-child(2) span { color: #2F4F3B; }
+.stat strong { font-weight: 400; }
+
+/* ---------- Empty wardrobe: example drawings ---------- */
+.ghost-card { opacity: 0.55; }
+.ghost-card .card-photo { aspect-ratio: 1; }
+.grid > .empty { grid-column: 1 / -1; }

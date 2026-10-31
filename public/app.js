@@ -23,6 +23,69 @@ const SLOTS = [
   { type: "wrist",  label: "Wrist",  required: false, extra: true, notWith: ["sport"] } // watch, bracelets
 ];
 
+// ---------- Icons and drawings (v21 redesign) ----------
+// One set of line icons, all drawn the same way (24x24, a 1.8 stroke), instead of emoji.
+// They're just SVG text, so no library and they work offline.
+const ICONS = {
+  home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>',
+  layers: '<path d="m12 2 10 5-10 5L2 7z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  hanger: '<path d="M12 7.5a2.2 2.2 0 1 1 2.2-2.2c0 1.1-.9 1.6-2.2 2.6"/><path d="M12 8 2.8 15.2A1.5 1.5 0 0 0 3.7 18h16.6a1.5 1.5 0 0 0 .9-2.8z"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>',
+  sparkles: '<path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8z"/><path d="M19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+  calendar: '<rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  chart: '<path d="M3 3v18h18"/><path d="M8 16v2M13 11v7M18 6v12"/>',
+  camera: '<path d="M14.5 4h-5L7.5 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.5z"/><circle cx="12" cy="13" r="3.5"/>',
+  back: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
+  arrow: '<path d="M5 12h14M12 5l7 7-7 7"/>',
+  thumb: '<path d="M7 10v12"/><path d="M15 5.9 14 10h5.8a2 2 0 0 1 1.9 2.5l-2.3 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.8a2 2 0 0 0 1.8-1.1L12 2a3.1 3.1 0 0 1 3 3.9z"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  refresh: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  sun: '<path d="M12 2v2M4.9 4.9l1.4 1.4M2 12h2M19.1 4.9l-1.4 1.4"/><path d="M15.9 13A4.5 4.5 0 0 0 8 10.5"/><path d="M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6z"/>',
+  drop: '<path d="M12 2.7 6.3 9a8 8 0 1 0 11.4 0z"/>',
+  shirt: '<path d="M20.4 3.5 16 2a4 4 0 0 1-8 0L3.6 3.5a2 2 0 0 0-1.3 2.2l.6 3.5a1 1 0 0 0 1 .8H6v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V10h2.1a1 1 0 0 0 1-.8l.6-3.5a2 2 0 0 0-1.3-2.2z"/>'
+};
+
+// returns the SVG for one icon as text. aria-hidden: the button's own words describe it
+function icon(name, size = 20) {
+  return '<svg class="icon" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[name] + '</svg>';
+}
+
+// a button with an icon AND words (the words are always ours, never typed by a user)
+function setIconLabel(element, name, text) {
+  element.innerHTML = icon(name, 18) + "<span>" + text + "</span>";
+}
+
+// every <... data-icon="calendar" data-text="Plan it"> in the HTML gets its icon once, at start
+for (const element of document.querySelectorAll("[data-icon]")) {
+  if (element.dataset.text) setIconLabel(element, element.dataset.icon, element.dataset.text);
+  else element.insertAdjacentHTML("afterbegin", icon(element.dataset.icon));
+}
+
+// Clothes without a photo get a DRAWING of their type (Andrei's idea), in their colour.
+// Same viewBox for all, so they line up in any box.
+const SHAPES = {
+  top:    '<path d="M38 18 L20 26 L4 52 L22 61 L30 50 L30 122 L90 122 L90 50 L98 61 L116 52 L100 26 L82 18 Q60 34 38 18Z"/>',
+  jacket: '<path d="M40 14 L20 22 L6 116 L26 120 L34 56 L34 124 L86 124 L86 56 L94 120 L114 116 L100 22 L80 14 L60 34Z"/><path d="M60 34 V124" stroke="rgba(0,0,0,.18)" stroke-width="3"/>',
+  pants:  '<path d="M30 10 L90 10 L94 126 L68 126 L60 46 L52 126 L26 126Z"/>',
+  shoes:  '<path d="M8 72 Q10 50 32 52 L48 68 Q76 72 108 82 Q116 88 110 96 L10 96 Q4 86 8 72Z" stroke="rgba(0,0,0,.12)" stroke-width="2"/><path d="M8 90 H112" stroke="rgba(0,0,0,.12)" stroke-width="5"/>',
+  head:   '<path d="M18 82 Q18 36 60 36 Q102 36 102 82 Z"/><path d="M60 80 L114 84 Q114 94 60 90 Z"/>',
+  neck:   '<path d="M30 30 Q60 56 90 30 L98 40 Q60 74 22 40 Z"/><path d="M44 58 L36 116 L54 116 L58 62 Z"/>',
+  wrist:  '<rect x="46" y="18" width="28" height="24" rx="6"/><rect x="46" y="98" width="28" height="24" rx="6"/><circle cx="60" cy="70" r="28"/><circle cx="60" cy="70" r="20" fill="rgba(255,255,255,.35)"/>'
+};
+// the colour families from mainColor(), as real colours to paint the drawing with
+const FAMILY_COLORS = {
+  neutral: "#B8B2A7", red: "#D9534F", orange: "#E8894A", yellow: "#E9C84A", green: "#5E9E6E",
+  teal: "#3E9E9A", blue: "#4A78C9", purple: "#8E6BC8", pink: "#E07BAA"
+};
+
+function drawing(type, color) {
+  const fill = FAMILY_COLORS[color] || "#C9C4BC"; // no colour yet: soft grey
+  return '<svg class="drawing" viewBox="0 0 120 140" fill="' + fill + '" aria-hidden="true">' + (SHAPES[type] || SHAPES.top) + '</svg>';
+}
+
 // ---------- Screens (bottom menu) ----------
 
 // "create" and "week" have no tab of their own, so their parent tab stays lit while you're there
@@ -73,7 +136,7 @@ function fillPhoto(box, item) {
     img.alt = ""; // the name is written right next to it, so no need to repeat it
     box.appendChild(img);
   } else {
-    box.textContent = item.name.charAt(0).toUpperCase();
+    box.innerHTML = drawing(item.type, item.color); // no photo: a drawing instead of a letter
   }
 }
 
@@ -129,7 +192,7 @@ function createCard(item) {
   laundry.type = "button";
   laundry.className = "laundry-btn";
   laundry.setAttribute("aria-pressed", String(item.inLaundry));
-  laundry.textContent = item.inLaundry ? "🧺 In the laundry" : "🧺 Laundry";
+  setIconLabel(laundry, "drop", item.inLaundry ? "In the laundry" : "Laundry");
   laundry.setAttribute("aria-label", item.name + " is in the laundry");
   laundry.addEventListener("click", () => toggleLaundry(item, card, laundry));
   if (item.inLaundry) card.classList.add("in-laundry");
@@ -168,8 +231,19 @@ async function loadClothes() {
   if (clothes.length === 0) {
     const empty = document.createElement("li");
     empty.className = "empty";
-    empty.textContent = "Your wardrobe is empty. Tap Add to put in your first item.";
+    empty.textContent = "Your wardrobe is empty. Tap + to put in your first item.";
     list.appendChild(empty);
+    // example drawings, so the empty screen still shows what it will look like
+    for (const type of ["top", "pants", "shoes", "jacket"]) {
+      const ghost = document.createElement("li");
+      ghost.className = "card ghost-card";
+      ghost.setAttribute("aria-hidden", "true");
+      const photo = document.createElement("div");
+      photo.className = "card-photo";
+      photo.innerHTML = drawing(type, "");
+      ghost.appendChild(photo);
+      list.appendChild(ghost);
+    }
   }
 
   for (const item of clothes) {
@@ -223,7 +297,7 @@ async function toggleLaundry(item, card, button) {
   item.inLaundry = inLaundry;
   card.classList.toggle("in-laundry", inLaundry);
   button.setAttribute("aria-pressed", String(inLaundry));
-  button.textContent = inLaundry ? "🧺 In the laundry" : "🧺 Laundry";
+  setIconLabel(button, "drop", inLaundry ? "In the laundry" : "Laundry");
   statusMessage.textContent = inLaundry
     ? item.name + " is in the laundry. We won't suggest it until it's back."
     : item.name + " is clean and back in your outfits.";
@@ -787,7 +861,7 @@ let currentWeather = null;
 
 // ---------- Weather ----------
 
-const weatherText = document.getElementById("weather-text");
+const weatherText = document.getElementById("weather-words");
 let todayCache = null; // so we don't ask the weather service on every click
 
 // asks the browser where we are (the browser asks the user for permission)
@@ -1122,6 +1196,7 @@ function drawOutfit() {
 
     if (piece.item === null) {
       li.classList.add("missing");
+      photo.innerHTML = drawing(piece.slot.type, ""); // an example drawing, so the outfit still looks like one
       name.textContent = "Nothing here yet";
       const note = document.createElement("p");
       note.className = "piece-note";
@@ -1148,14 +1223,14 @@ function drawOutfit() {
 
       const swap = document.createElement("button");
       swap.className = "swap-btn";
-      swap.textContent = "↻";
+      swap.innerHTML = icon("refresh");
       swap.setAttribute("aria-label", "Swap " + piece.slot.label.toLowerCase() + ", now " + piece.item.name);
       swap.addEventListener("click", () => swapPiece(index));
       if (piece.slot.extra) {
         // accessories can also be taken off
         const remove = document.createElement("button");
         remove.className = "swap-btn";
-        remove.textContent = "×";
+        remove.innerHTML = icon("x");
         remove.setAttribute("aria-label", "Take off " + piece.item.name);
         remove.addEventListener("click", () => removeExtra(index));
         const buttons = document.createElement("div");
@@ -1193,20 +1268,22 @@ function drawOutfit() {
   extrasBox.hidden = currentExtras.length === 0;
 
   homeActions.hidden = currentOutfit.every((p) => p.item === null);
+  document.getElementById("home-tiles").hidden = currentOutfit.length > 0; // the outfit takes their place
   planPicker.hidden = true;
   planButton.setAttribute("aria-expanded", "false");
   woreItButton.hidden = !isToday; // you can't wear Saturday's plan today
   if (currentPlanDay) {
-    planNote.textContent = "📅 Your plan for " + dayInSentence(currentPlanDay);
+    planNote.innerHTML = icon("calendar", 18);
+    planNote.append(" Your plan for " + dayInSentence(currentPlanDay));
     planNote.hidden = false;
   } else {
     planNote.hidden = true;
   }
   woreItButton.disabled = false; // a new outfit can be worn again
-  woreItButton.textContent = "✓ Wore it today";
+  setIconLabel(woreItButton, "check", "Wore it today");
   likeButton.disabled = false;
   likeButton.setAttribute("aria-pressed", "false");
-  likeButton.textContent = "👍 Like it";
+  setIconLabel(likeButton, "thumb", "Like it");
 }
 
 function capitalize(word) {
@@ -1244,7 +1321,7 @@ likeButton.addEventListener("click", async () => {
   await learn(allPairs(items), 1); // every pair in this outfit goes up
   likeButton.disabled = true;
   likeButton.setAttribute("aria-pressed", "true");
-  likeButton.textContent = "👍 Liked";
+  setIconLabel(likeButton, "thumb", "Liked");
   statusMessage.textContent = "Got it! We'll put these together more often.";
 });
 
@@ -1278,7 +1355,7 @@ woreItButton.addEventListener("click", async () => {
     item.lastWorn = todayString();
   }
   woreItButton.disabled = true;
-  woreItButton.textContent = "✓ Worn today";
+  setIconLabel(woreItButton, "check", "Worn today");
   statusMessage.textContent = "Saved! Tomorrow we'll suggest something different.";
 });
 
@@ -1423,7 +1500,7 @@ function drawWeek() {
       empty.className = "week-empty";
       empty.textContent = "Nothing planned.";
       li.appendChild(empty);
-      buttons.appendChild(weekButton("✨ Plan an outfit", "Plan an outfit for " + dayLabel(day), () => planDay(day)));
+      buttons.appendChild(weekButton("sparkles", "Plan an outfit", "Plan an outfit for " + dayLabel(day), () => planDay(day)));
     } else {
       const thumbs = document.createElement("ul");
       thumbs.className = "week-thumbs";
@@ -1436,12 +1513,12 @@ function drawWeek() {
       }
       li.appendChild(thumbs);
       buttons.append(
-        weekButton("Open", "Open the plan for " + dayLabel(day), () => {
+        weekButton("arrow", "Open", "Open the plan for " + dayLabel(day), () => {
           showView("home");
           showPlan(day);
         }),
-        weekButton("↻ New", "Plan a different outfit for " + dayLabel(day), () => planDay(day)),
-        weekButton("Remove", "Remove the plan for " + dayLabel(day), async () => {
+        weekButton("refresh", "New", "Plan a different outfit for " + dayLabel(day), () => planDay(day)),
+        weekButton("x", "Remove", "Remove the plan for " + dayLabel(day), async () => {
           await removePlan(day);
           if (currentPlanDay === day) currentPlanDay = null;
           drawWeek();
@@ -1454,10 +1531,10 @@ function drawWeek() {
   }
 }
 
-function weekButton(text, label, onClick) {
+function weekButton(iconName, text, label, onClick) {
   const button = document.createElement("button");
   button.className = "btn-ghost";
-  button.textContent = text;
+  setIconLabel(button, iconName, text);
   button.setAttribute("aria-label", label);
   button.addEventListener("click", onClick);
   return button;
@@ -1478,6 +1555,13 @@ async function planDay(day) {
 }
 
 document.getElementById("week-btn").addEventListener("click", () => showView("week"));
+document.getElementById("stats-btn").addEventListener("click", () => showView("profile"));
+// the action tiles on Home (menu = places, tiles = actions)
+document.getElementById("tile-scan").addEventListener("click", () => {
+  showView("add");
+  cameraButton.click(); // straight to the camera
+});
+document.getElementById("tile-create").addEventListener("click", () => document.getElementById("create-btn").click());
 document.getElementById("week-back-btn").addEventListener("click", () => showView("home"));
 
 // ---------- Outfits: the flat lay "mannequin" ----------
@@ -2048,6 +2132,8 @@ document.getElementById("logout-btn").addEventListener("click", async () => {
 
 async function enterApp(user) {
   document.getElementById("account-name").textContent = user.username;
+  document.getElementById("home-name").textContent = user.username;
+  document.getElementById("home-avatar").textContent = user.username.charAt(0).toUpperCase();
   document.body.classList.remove("logged-out");
   await Promise.all([loadClothes(), loadOutfits(), loadFeatures(), loadPairs(), loadPlans()]);
   showView("home");

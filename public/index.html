@@ -7,14 +7,14 @@
 
   <!-- makes the app installable on a phone (icon on the home screen) -->
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#F5F1EA">
+  <meta name="theme-color" content="#F1F2EF">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" href="icons/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Outfits">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=DM+Sans:wght@400;500;700&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="logged-out"> <!-- locked until the server says who you are -->
@@ -46,19 +46,19 @@
 
     <!-- TAB 1: Home = outfit of the day -->
     <section id="view-home" class="view" aria-labelledby="home-title" hidden>
-      <div class="view-head">
-        <h1 id="home-title" tabindex="-1">Today</h1>
-        <button id="week-btn" class="btn-ghost"><span aria-hidden="true">📅</span> Your week</button>
+      <!-- v21 redesign: greeting, weather pill, style chips, one big Generate card -->
+      <div class="hello-row">
+        <span class="avatar" id="home-avatar" aria-hidden="true">A</span>
+        <p class="hello"><small>Hello</small><strong id="home-name"></strong></p>
+        <button id="week-btn" class="icon-btn" aria-label="Your week" data-icon="calendar"></button>
+        <button id="stats-btn" class="icon-btn" aria-label="Your stats" data-icon="chart"></button>
       </div>
+      <h1 id="home-title" tabindex="-1">What are we wearing today?</h1>
 
-      <div class="panel">
-        <div class="field">
-          <p class="field-title">Today's weather</p>
-          <p id="weather-text" class="weather-text">We'll check the weather where you are when you generate.</p>
-        </div>
+      <p id="weather-text" class="weather-pill"><span data-icon="sun"></span><span id="weather-words">We'll check the weather where you are when you generate.</span></p>
 
-        <fieldset class="field">
-          <legend>Today I want to dress</legend>
+        <fieldset class="field mood-field">
+          <legend class="visually-hidden">Today I want to dress</legend>
           <div class="chips">
             <label class="chip"><input type="radio" name="mood" value="sport" checked> Sport</label>
             <label class="chip"><input type="radio" name="mood" value="baggy"> Baggy</label>
@@ -67,10 +67,15 @@
           </div>
         </fieldset>
 
-        <div class="actions">
-          <button id="generate-btn" class="btn-primary">Generate outfit</button>
-          <button id="surprise-btn" class="btn-ghost">Surprise me</button>
-        </div>
+        <button id="generate-btn" class="generate-card">
+          <span><strong>Generate outfit</strong><small>Weather · your style · what you wore</small></span>
+          <span class="go" data-icon="arrow"></span>
+        </button>
+        <button id="surprise-btn" class="btn-link surprise">or surprise me</button>
+
+      <div id="home-tiles" class="tiles">
+        <button class="tile" id="tile-scan"><span class="tile-icon" data-icon="camera"></span><span class="tile-label"><strong>Scan item</strong><small>Camera with a guide</small></span></button>
+        <button class="tile" id="tile-create"><span class="tile-icon" data-icon="layers"></span><span class="tile-label"><strong>Create outfit</strong><small>Pick the pieces</small></span></button>
       </div>
 
       <p id="plan-note" class="plan-note" hidden></p>
@@ -86,10 +91,10 @@
       <div id="home-actions" class="actions actions-even" hidden>
         <button id="style-it-btn" class="btn-primary">See it styled</button>
         <button id="save-generated-btn" class="btn-ghost">Save</button>
-        <button id="like-btn" class="btn-ghost" aria-pressed="false">👍 Like it</button>
+        <button id="like-btn" class="btn-ghost" aria-pressed="false">Like it</button>
         <button id="skip-btn" class="btn-ghost">Skip</button>
-        <button id="plan-btn" class="btn-ghost" aria-expanded="false" aria-controls="plan-picker">📅 Plan it</button>
-        <button id="wore-it-btn" class="btn-ghost wore-it">✓ Wore it today</button>
+        <button id="plan-btn" class="btn-ghost" aria-expanded="false" aria-controls="plan-picker" data-icon="calendar" data-text="Plan it"></button>
+        <button id="wore-it-btn" class="btn-ghost wore-it">Wore it today</button>
       </div>
 
       <!-- opens under the buttons when you tap "Plan it" -->
@@ -104,8 +109,10 @@
 
     <!-- Your week (opened from Home, not from the bottom menu) -->
     <section id="view-week" class="view" aria-labelledby="week-title" hidden>
-      <button id="week-back-btn" class="btn-link">‹ Today</button>
-      <h1 id="week-title" tabindex="-1">Your week</h1>
+      <div class="top-bar">
+        <button id="week-back-btn" class="icon-btn" aria-label="Back to Today" data-icon="back"></button>
+        <h1 id="week-title" tabindex="-1">Your week</h1>
+      </div>
       <p class="hint">Plan ahead. On the day, we check what's in the laundry and help you swap it.</p>
 
       <fieldset class="field">
@@ -124,8 +131,10 @@
 
     <!-- TAB 2: Outfits = the "mannequin" (flat lay) + saved outfits -->
     <section id="view-outfits" class="view" aria-labelledby="outfits-title" hidden>
-      <h1 id="outfits-title" tabindex="-1">Outfits</h1>
-      <button id="create-btn" class="btn-ghost create-btn">＋ Create your own</button>
+      <div class="view-head">
+        <h1 id="outfits-title" tabindex="-1">Outfits</h1>
+        <button id="create-btn" class="icon-btn dark" aria-label="Create your own outfit" data-icon="plus"></button>
+      </div>
 
       <figure class="board-wrap">
         <div id="board" class="board" role="img" aria-label="No outfit yet"></div>
@@ -144,8 +153,10 @@
 
     <!-- Create your own (opened from Outfits, not from the bottom menu) -->
     <section id="view-create" class="view" aria-labelledby="create-title" hidden>
-      <button id="back-btn" class="btn-link">‹ Outfits</button>
-      <h1 id="create-title" tabindex="-1">Create your own</h1>
+      <div class="top-bar">
+        <button id="back-btn" class="icon-btn" aria-label="Back to Outfits" data-icon="back"></button>
+        <h1 id="create-title" tabindex="-1">Create your own</h1>
+      </div>
 
       <ul id="tray" class="tray" aria-label="Your picks"></ul>
       <p id="tray-count" class="hint">Nothing picked yet.</p>
@@ -165,7 +176,7 @@
         </div>
       </fieldset>
 
-      <button id="fill-random-btn" class="btn-soft"><span aria-hidden="true">🎲</span> Fill the rest at random</button>
+      <button id="fill-random-btn" class="btn-soft" data-icon="sparkles" data-text="Fill the rest for me"></button>
 
       <fieldset class="field">
         <legend class="visually-hidden">Show</legend>
@@ -196,11 +207,11 @@
           <div class="field">
             <div class="photo-pick">
               <img id="photo-preview" alt="" hidden>
-              <span id="photo-placeholder"><span aria-hidden="true">👕</span> Add a photo of your item</span>
+              <span id="photo-placeholder"><span data-icon="shirt"></span> Add a photo of your item</span>
               <span id="photo-busy" class="photo-busy" hidden>Cutting out your item…</span>
             </div>
             <div class="actions actions-even photo-actions">
-              <button type="button" id="camera-btn" class="btn-primary"><span aria-hidden="true">📷</span> Take photo</button>
+              <button type="button" id="camera-btn" class="btn-primary" data-icon="camera" data-text="Take photo"></button>
               <label for="photo" class="btn-ghost file-btn">From gallery</label>
             </div>
             <input id="photo" name="photo" type="file" accept="image/*" class="visually-hidden">
@@ -260,7 +271,7 @@
     <!-- TAB 4: Clothes = the whole wardrobe -->
     <section id="view-clothes" class="view" aria-labelledby="clothes-title" hidden>
       <div class="view-head">
-        <h1 id="clothes-title" tabindex="-1">Clothes</h1>
+        <h1 id="clothes-title" tabindex="-1">My wardrobe</h1>
         <button id="select-toggle" class="btn-ghost" aria-pressed="false">Select</button>
       </div>
       <ul id="clothes-list" class="grid"></ul>
@@ -301,21 +312,11 @@
 
   <!-- bottom menu: 5 tabs, Add in the middle -->
   <nav class="bottom-nav" aria-label="Main">
-    <button class="nav-btn" data-view="home" aria-current="page">
-      <span class="nav-icon" aria-hidden="true">⌂</span> Home
-    </button>
-    <button class="nav-btn" data-view="outfits">
-      <span class="nav-icon" aria-hidden="true">✦</span> Outfits
-    </button>
-    <button class="nav-btn nav-add" data-view="add">
-      <span class="nav-icon" aria-hidden="true">＋</span> Add
-    </button>
-    <button class="nav-btn" data-view="clothes">
-      <span class="nav-icon" aria-hidden="true">▦</span> Clothes
-    </button>
-    <button class="nav-btn" data-view="profile">
-      <svg class="nav-icon nav-svg" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg> Profile
-    </button>
+    <button class="nav-btn" data-view="home" aria-current="page"><span data-icon="home"></span><span class="nav-label">Home</span></button>
+    <button class="nav-btn" data-view="outfits"><span data-icon="layers"></span><span class="nav-label">Outfits</span></button>
+    <button class="nav-btn nav-add" data-view="add" aria-label="Add an item"><span data-icon="plus"></span></button>
+    <button class="nav-btn" data-view="clothes"><span data-icon="hanger"></span><span class="nav-label">Clothes</span></button>
+    <button class="nav-btn" data-view="profile"><span data-icon="user"></span><span class="nav-label">Profile</span></button>
   </nav>
 
   <!-- in-app camera with an outline that shows how to place the item -->
