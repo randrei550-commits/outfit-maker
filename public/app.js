@@ -15,7 +15,12 @@ const SLOTS = [
   { type: "top",    label: "Top",    required: true },
   { type: "pants",  label: "Pants",  required: true },
   { type: "shoes",  label: "Shoes",  required: true },
-  { type: "jacket", label: "Jacket", required: false }
+  { type: "jacket", label: "Jacket", required: false },
+  // NEW in v19: accessories, one slot per body zone (Andrei's idea).
+  // extra = only added when it really fits the outfit. notWith = styles that never get it.
+  { type: "head",   label: "Head",   required: false, extra: true },                    // cap, beanie
+  { type: "neck",   label: "Neck",   required: false, extra: true },                    // scarf, chains
+  { type: "wrist",  label: "Wrist",  required: false, extra: true, notWith: ["sport"] } // watch, bracelets
 ];
 
 // ---------- Screens (bottom menu) ----------
@@ -565,6 +570,22 @@ const GUIDES = {
     hanger: false,
     shape: "M48 290 Q46 238 104 226 L146 196 Q172 184 190 208 L250 248 Q272 262 270 292 Z",
     tip: "Put one shoe on the floor, side view, on a plain background."
+  },
+  // accessories are small: lay them flat on a table, no hanger
+  head: {
+    hanger: false,
+    shape: "M60 250 Q60 150 150 150 Q240 150 240 250 Z",
+    tip: "Lay the cap or beanie flat on a plain table and fill the outline."
+  },
+  neck: {
+    hanger: false,
+    shape: "M90 110 Q150 170 210 110 L225 120 Q150 210 75 120 Z M120 160 L110 330 L150 330 L150 175 Z",
+    tip: "Lay the scarf or chain flat on a plain table."
+  },
+  wrist: {
+    hanger: false,
+    shape: "M150 140 a70 70 0 1 1 -0.1 0 Z",
+    tip: "Lay the watch or bracelet flat on a plain table, close up."
   }
 };
 
@@ -840,6 +861,8 @@ function fitsWeather(item, slot, weather) {
   if (!weather) return true;
   const warmth = item.warmth || 2;
   if (slot.type === "jacket" && weather.rainy) return item.rainproof === true;
+  // a warm accessory (beanie, scarf) only when it's really cold
+  if (slot.extra && warmth === 3 && weather.target !== 3) return false;
   return Math.abs(warmth - weather.target) <= 1;
 }
 
@@ -849,7 +872,8 @@ function candidatesFor(slot, style, weather = currentWeather, ignoreLaundry = fa
   // clothes in the laundry are not in your closet today, so normally they're never an option
   const sameType = allClothes.filter((c) => c.type === slot.type && (ignoreLaundry || !c.inLaundry));
   const goodWeather = sameType.filter((c) => fitsWeather(c, slot, weather));
-  const base = goodWeather.length > 0 ? goodWeather : sameType; // weather is a wish, not a must
+  // weather is a wish, not a must... except for accessories: no scarf at all beats a scarf at 25°C
+  const base = goodWeather.length > 0 || slot.extra ? goodWeather : sameType;
 
   if (style === null) {
     return { pool: base, fallback: false };
@@ -970,13 +994,17 @@ function buildOutfit(style, weather, ignoreLaundry) {
   for (const slot of SLOTS) {
     // the jacket only comes along when the weather asks for it
     if (slot.type === "jacket" && weather && !weather.needJacket) continue;
+    if (slot.notWith && slot.notWith.includes(style)) continue; // e.g. no bracelets with Sport
     const { pool, fallback } = candidatesFor(slot, style, weather, ignoreLaundry);
     if (pool.length === 0) {
       if (slot.required) outfit.push({ slot, item: null, fallback: false });
       continue; // optional piece with nothing to choose: just skip it
     }
     const chosen = outfit.map((p) => p.item).filter(Boolean);
-    outfit.push({ slot, item: pickBest(pool, slot, chosen), fallback });
+    const best = pickBest(pool, slot, chosen);
+    // an accessory has to EARN its place: only if it scores above 0 with the rest
+    if (slot.extra && score(best, slot, chosen) <= 0) continue;
+    outfit.push({ slot, item: best, fallback });
   }
   return outfit;
 }
@@ -1387,13 +1415,19 @@ const LAYOUT = {
   jacket: { x: 50, y: 4,  w: 46, h: 42, z: 1 },
   top:    { x: 8,  y: 6,  w: 50, h: 40, z: 2 },
   pants:  { x: 14, y: 44, w: 44, h: 52, z: 2 },
-  shoes:  { x: 58, y: 70, w: 36, h: 24, z: 3 }
+  shoes:  { x: 58, y: 70, w: 36, h: 24, z: 3 },
+  head:   { x: 60, y: 46, w: 18, h: 13, z: 3 },
+  neck:   { x: 79, y: 46, w: 18, h: 13, z: 3 },
+  wrist:  { x: 69, y: 58, w: 20, h: 11, z: 3 }
 };
 // without a jacket, the top moves to the middle
 const LAYOUT_NO_JACKET = {
   top:    { x: 22, y: 4,  w: 56, h: 42, z: 2 },
   pants:  { x: 12, y: 44, w: 46, h: 52, z: 2 },
-  shoes:  { x: 58, y: 66, w: 36, h: 26, z: 3 }
+  shoes:  { x: 58, y: 66, w: 36, h: 26, z: 3 },
+  head:   { x: 78, y: 4,  w: 20, h: 15, z: 3 },
+  neck:   { x: 78, y: 22, w: 20, h: 16, z: 3 },
+  wrist:  { x: 62, y: 48, w: 22, h: 14, z: 3 }
 };
 
 // ids -> real items (an item may have been deleted since, so we skip those)
@@ -1415,7 +1449,7 @@ function fillBoard(box, outfit) {
     const place = layout[item.type];
     if (!place) continue;
     const piece = document.createElement("div");
-    piece.className = "board-piece" + (item.photo ? "" : " no-photo");
+    piece.className = "board-piece" + (item.photo ? "" : " no-photo") + (place.w < 25 ? " small" : "");
     piece.style.left = place.x + "%";
     piece.style.top = place.y + "%";
     piece.style.width = place.w + "%";

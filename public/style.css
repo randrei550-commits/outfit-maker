@@ -767,3 +767,7 @@ body.logged-out { padding-bottom: 24px; }
 .week-empty { margin: 0 0 10px; color: var(--text-muted); font-size: 0.9rem; }
 .week-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
 .week-buttons button { padding: 6px 14px; }
+
+/* ---------- Accessories (v19) ---------- */
+/* small pieces on the board: a smaller tile, so the name still fits */
+.board-piece.no-photo.small { padding: 3px; border-radius: 12px; font-size: 0.75rem; line-height: 1.2; }
